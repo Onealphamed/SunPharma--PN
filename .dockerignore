@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+.env.*
+data/local-store.json*
+config/users.json
+config/*.key.json
+output
+.git
