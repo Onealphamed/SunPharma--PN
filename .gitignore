@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+# Runtime data and secrets — never commit
+data/local-store.json
+data/local-store.json.*
+config/users.json
+config/*.key.json
+*.service-account.json
+output/
+coverage/
+.vercel/
