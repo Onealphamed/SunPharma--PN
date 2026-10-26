@@ -2,7 +2,10 @@
 
 Client-facing project dashboard for the **Sun Pharma PN0510 Advisory Board programme**: regional boards AB-1 to AB-4 and the national consensus board NAB-5, run by OneAlphaMed. The source of truth is a **live Google Sheet**, created from the `Readiness Checklist` worksheet of `OneAlphaMed_SunPharma_PN0510_AdBoard_Readiness_Checklist_v1.0.xlsx`.
 
-> **Current state.** The application is fully built and tested against a **local data adapter**. The Google Sheets connector is implemented and tested against a simulated sheet. It is **not yet connected to a real Google Sheet**: no service-account credentials were available during the build. Until §3 is done, the header reads *"Local data (Google Sheet not connected)"* and a banner says the dashboard is not live.
+> **Current state.** Live at https://sun-pharma-pn.vercel.app.
+> - It reads the Google Sheet `11utniknUlqKEEwh-8_fS2qkM9ttoKbHqUb86dOZLrA0` through its **"Anyone with the link can view"** sharing (view-only link mode, §3A). No credentials are needed.
+> - Edits are made in Google Sheets and appear within the sync interval (15 s by default).
+> - Visitors need no sign-in (open access, §4).
 
 ## Contents
 1. What it does
@@ -68,6 +71,30 @@ npm run dev
 - Produces `output/PN0510_Live_Tracker.xlsx`, the file that becomes the Google Sheet: 11 tabs, frozen headers, drop-downs, internal columns in a darker header colour.
 
 ## 3. Connect the live Google Sheet
+
+There are two ways to connect:
+
+| | **A. View-only link** (in use) | **B. Service account** |
+|---|---|---|
+| Set-up | Share the sheet as *Anyone with the link can view* and set `GOOGLE_SHEET_ID` | Google Cloud service account + key |
+| Where edits happen | In Google Sheets only (the dashboard is read-only) | Google Sheets **and** the dashboard (team sign-in) |
+| Sheet layout | Your workbook as it is: deliverables come from the **Readiness Checklist** tab | The tracker tabs from `output/PN0510_Live_Tracker.xlsx` |
+| Privacy | Anyone with the sheet link can read the whole sheet | The sheet can stay private |
+
+### 3A. View-only link (no credentials)
+
+- **Set-up:** set `GOOGLE_SHEET_ID` to the sheet ID, or paste the whole sheet URL. Leave `GOOGLE_SERVICE_ACCOUNT_JSON` empty. With no key, the dashboard uses this mode automatically.
+- **How it reads:** on every sync (default every **15 s**), the server downloads the workbook through Google's export link. It rebuilds the tracker from the **Readiness Checklist** tab using the same rules as the import (§2).
+- **Optional extra columns:** add columns to the checklist with the tracker names and they are picked up automatically, e.g. *Planned Start Date*, *Planned End Date*, *Actual Completion Date*, *Completion Confirmed*, *Priority*, *Dependency*, *Next Action*, *Action Owner*, *Target Date*, *Client Approval Status*.
+  - Add a **Deliverable ID** column to keep IDs fixed when rows are inserted. Without it, IDs are numbered by position within each section.
+- **More tracker data:** tabs named like the tracker tabs (*Meetings*, *Action Items*, *Risks & Issues*, *Decision Log*, *Settings*, …) with the same headers are read too.
+- **Live sheet page:** shows every tab exactly as it stands. Visitors see contact-detail columns (phone, email, dietary needs, address) masked, and only signed-in team members get the "Open in Google Sheets" link.
+- **Limits:**
+  - Dashboard editing (status changes, meeting notes, comments) is switched off in this mode.
+  - Turning off link sharing breaks the connection; the dashboard then shows a clear Connection Error.
+  - Anyone with the sheet link can read the whole sheet, including contact details. Treat that link as confidential, or switch to 3B.
+
+### 3B. Service account (read/write)
 
 1. **Create the sheet.** Upload `output/PN0510_Live_Tracker.xlsx` to Google Drive, open it, then use **File → Save as Google Sheets**.
    *Alternative:* create an empty Google Sheet and run `npm run sheet:push` after step 4. It creates the tabs and fills only tabs that are empty; it never overwrites data.
@@ -208,13 +235,13 @@ See `.env.example`. Secrets are read only by the server and never bundled into t
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `DATA_SOURCE` | yes | `google` (live) or `local` |
-| `GOOGLE_SHEET_ID` | google | Spreadsheet ID |
+| `DATA_SOURCE` | yes (locally) | `google` (service account if a key is set, otherwise the view-only link), `public-sheet` (view-only link), or `local`. On Vercel it is chosen automatically |
+| `GOOGLE_SHEET_ID` | google | Spreadsheet ID, or the full sheet URL |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | google | Service-account key as JSON or base64 (or `GOOGLE_APPLICATION_CREDENTIALS` = a key file path) |
 | `PUBLIC_ACCESS` | no | Default `true`: read-only view without sign-in. `false` requires sign-in for everyone |
 | `JWT_SECRET` | if anyone can sign in | 32+ random characters; required in production whenever accounts exist or `PUBLIC_ACCESS=false` |
 | `USERS_FILE` / `USERS_JSON` | if anyone can sign in | User accounts (bcrypt hashes); not needed for open access without team sign-in |
-| `SYNC_INTERVAL_SECONDS` | no | Poll interval, default 30 |
+| `SYNC_INTERVAL_SECONDS` | no | How often the sheet is re-read: default 15 (view-only link) or 30, minimum 10 |
 | `PROJECT_TIME_ZONE` | no | Defines "today" (default `Asia/Kolkata`) |
 | `ALLOW_DEV_LOGIN` | no | One-click development sign-in; ignored in production |
 

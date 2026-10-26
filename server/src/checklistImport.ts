@@ -4,9 +4,10 @@
 // Nothing is invented: blank source cells stay blank, and every derived value is
 // listed in the report with the rule that produced it.
 import type ExcelJS from 'exceljs';
-import { norm, parseTable, Rec } from '../../shared/model';
+import { parseDate } from '../../shared/dates';
+import { norm, parseTable, Rec, splitIds } from '../../shared/model';
 import { buildProject, plainName } from '../../shared/project';
-import { DELIVERABLE_TYPES, LEADS, TABLES, TableKey } from '../../shared/schema';
+import { ColumnSpec, DELIVERABLE_TYPES, LEADS, TABLES, TableKey } from '../../shared/schema';
 import { DEFAULT_STATUSES, StatusMap } from '../../shared/status';
 import { suggestDependencies } from '../../shared/suggestions';
 
@@ -39,7 +40,12 @@ const SOURCE_COLUMNS: [string, string][] = [
   ['Duration (WD)', 'durationWd'], ['Status', 'status'], ['Schedule Flag', 'scheduleFlag'], ['Remarks', 'remarks'],
 ];
 
-function cellValue(v: ExcelJS.CellValue): unknown {
+/** Live-tracker fields that are part of the checklist itself (everything else is optional). */
+const CHECKLIST_KEYS = new Set(['phase', 'workstream', 'name', 'description', 'type', 'lead', 'leadFunction', 'oamOwner', 'sunOwner', 'durationWd', 'status', 'remarks']);
+/** Fields never read from the sheet: system-managed or derived. */
+const SYSTEM_KEYS = new Set(['wsCode', 'scheduleFlagSource', 'statusOriginal', 'sourceRow', 'sortOrder', 'lastUpdated', 'updatedBy', 'archived']);
+
+export function cellValue(v: ExcelJS.CellValue): unknown {
   if (v === null || v === undefined) return null;
   if (v instanceof Date) return v;
   if (typeof v === 'object') {
@@ -52,13 +58,41 @@ function cellValue(v: ExcelJS.CellValue): unknown {
   return v;
 }
 // Trim only: inner spacing and characters such as "◆", "–" and "≥" are kept exactly.
-const str = (v: unknown) => (v === null || v === undefined ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : String(v).trim());
+const str = (v: unknown) => (v === null || v === undefined ? '' : v instanceof Date ? (isNaN(v.getTime()) ? '' : v.toISOString().slice(0, 10)) : String(v).trim());
 
 function rowOf(key: TableKey, rec: Record<string, Cell>): Cell[] {
   return TABLES[key].columns.map(c => (rec[c.key] === undefined ? null : rec[c.key]));
 }
 
-export function importChecklist(wb: ExcelJS.Workbook, opts: { sourceName: string; importedAt: string }): ImportResult {
+/** Value of an optional tracker column, typed like the live tracker column. */
+function typedValue(col: ColumnSpec, raw: unknown): { value: Cell; invalid?: string } {
+  const s = str(raw);
+  if (!s) return { value: null };
+  switch (col.type) {
+    case 'date': {
+      const p = parseDate(raw instanceof Date ? raw : s);
+      return p.iso ? { value: p.iso } : { value: null, invalid: s };
+    }
+    case 'number': {
+      const n = Number(s);
+      return isFinite(n) ? { value: n } : { value: null, invalid: s };
+    }
+    case 'enum': {
+      const hit = col.options?.find(o => norm(o) === norm(s));
+      return { value: hit ?? s, invalid: col.options && !hit ? s : undefined };
+    }
+    case 'idlist':
+      return { value: splitIds(s).join(', ') || null };
+    default:
+      return { value: s };
+  }
+}
+
+/**
+ * opts.live: the workbook is the live Google Sheet, read on every sync. Rows then carry no
+ * import timestamp, and IDs come from a "Deliverable ID" column when the team adds one.
+ */
+export function importChecklist(wb: ExcelJS.Workbook, opts: { sourceName: string; importedAt: string; live?: boolean }): ImportResult {
   const findings: Finding[] = [];
   const f = (severity: Finding['severity'], area: string, message: string) => findings.push({ severity, area, message });
   const statusMap = new StatusMap(DEFAULT_STATUSES);
@@ -78,6 +112,18 @@ export function importChecklist(wb: ExcelJS.Workbook, opts: { sourceName: string
   });
   for (const [name, key] of SOURCE_COLUMNS) if (!colOf[key]) f('error', 'Structure', `Column "${name}" not found in the header row.`);
   const get = (r: number, key: string) => (colOf[key] ? cellValue(ws.getRow(r).getCell(colOf[key]).value) : null);
+
+  // Tracker columns the team may add to the checklist (Planned Start Date, Completion Confirmed,
+  // Deliverable ID…), matched by the live-tracker header names.
+  const optional = TABLES.deliverables.columns.filter(c => !CHECKLIST_KEYS.has(c.key) && !SYSTEM_KEYS.has(c.key));
+  const extraCol = new Map<ColumnSpec, number>();
+  headerRow.eachCell({ includeEmpty: false }, (c, n) => {
+    const h = norm(str(cellValue(c.value)));
+    const col = optional.find(o => [o.header, ...(o.aliases ?? [])].some(x => norm(x) === h));
+    if (col && ![...extraCol.keys()].includes(col)) extraCol.set(col, n);
+  });
+  if (extraCol.size) f('info', 'Tracker columns', `Tracker columns found in the checklist and used: ${[...extraCol.keys()].map(c => c.header).join(', ')}.`);
+  const idCol = [...extraCol.keys()].find(c => c.key === 'id');
 
   const deliverables: Record<string, Cell>[] = [];
   const phases: Record<string, Cell>[] = [];
@@ -117,7 +163,8 @@ export function importChecklist(wb: ExcelJS.Workbook, opts: { sourceName: string
     }
     seq++;
     order += 10;
-    const id = `PN-${wsCode || '0.0'}.${String(seq).padStart(2, '0')}`;
+    const ownId = idCol ? str(cellValue(ws.getRow(r).getCell(extraCol.get(idCol)!).value)) : '';
+    const id = ownId || `PN-${wsCode || '0.0'}.${String(seq).padStart(2, '0')}`;
     const workstream = str(get(r, 'workstream'));
     if (wsName && norm(workstream) !== norm(wsName)) f('warning', 'Workstreams', `${id} (row ${r}): Workstream "${workstream}" differs from its section heading "${wsName}".`);
     const rawType = str(get(r, 'type'));
@@ -140,6 +187,13 @@ export function importChecklist(wb: ExcelJS.Workbook, opts: { sourceName: string
     const statusRef = text.match(/status to ['‘’"]([^'‘’"]+)['‘’"]/i);
     if (statusRef && !statusMap.get(statusRef[1])) f('warning', 'Status', `${id} (row ${r}) refers to a status "${statusRef[1]}", which is not one of the eight configured statuses. Use "In Review" (or add it in Status Config if Sun Pharma needs it).`);
     if (/overview tab/i.test(text)) f('info', 'Content', `${id} (row ${r}) refers to the Overview tab, which is not read by this import. The text is kept as-is.`);
+    const extras: Record<string, Cell> = {};
+    for (const [col, n] of extraCol) {
+      if (col.key === 'id') continue;
+      const { value, invalid } = typedValue(col, cellValue(ws.getRow(r).getCell(n).value));
+      if (invalid !== undefined) f('warning', 'Tracker columns', `${id} (row ${r}): "${invalid}" in ${col.header} could not be read${col.type === 'date' ? ' as a date' : ''}.`);
+      extras[col.key] = value;
+    }
     deliverables.push({
       id, phase: `Phase ${a.match(/\d+/)![0]}`, wsCode, workstream: workstream || wsName, name: c, description: str(get(r, 'description')) || null,
       type, lead, leadFunction: str(get(r, 'leadFunction')) || null, oamOwner: str(get(r, 'oamOwner')) || null, sunOwner: str(get(r, 'sunOwner')) || null,
@@ -152,12 +206,15 @@ export function importChecklist(wb: ExcelJS.Workbook, opts: { sourceName: string
       approvalStatus: type === 'Approval Gate' ? 'Not Submitted' : null,
       clientApprover: null, dateSubmitted: null, reviewTurnaroundWd: null, approvalDue: null, approvalFeedback: null, lastFollowUp: null, nextFollowUp: null,
       internalNotes: null, clientVisible: 'Yes', archived: 'No', sortOrder: order, sourceRow: r,
-      lastUpdated: opts.importedAt, updatedBy: 'Checklist import',
+      lastUpdated: opts.live ? null : opts.importedAt, updatedBy: opts.live ? null : 'Checklist import',
+      ...extras,
     });
   }
 
   const ids = deliverables.map(d => String(d.id));
-  if (new Set(ids).size !== ids.length) f('error', 'IDs', 'Duplicate deliverable IDs generated.');
+  if (new Set(ids).size !== ids.length) f('error', 'IDs', 'Duplicate deliverable IDs.');
+  if (opts.live && !idCol)
+    f('info', 'IDs', 'IDs are numbered by position within each checklist section. Add a "Deliverable ID" column to the Readiness Checklist to keep IDs fixed when rows are inserted or moved.');
   const missingPhases = Object.keys(PHASE_NAMES).filter(p => !phases.some(x => x.phase === p));
   for (const p of missingPhases) f('error', 'Phases', `${p} heading not found.`);
   const wsCodes = [...new Set(deliverables.map(d => String(d.wsCode)))];
@@ -185,7 +242,7 @@ export function importChecklist(wb: ExcelJS.Workbook, opts: { sourceName: string
   set('Executive Narrative Updated By', null, '', 'Internal');
   set('Health Override', null, 'Leave blank for calculated health; or Green / Amber / Red');
   set('Health Override Reason', null, '');
-  set('Checklist Imported At', opts.importedAt, 'Timestamp of the initial import (used to tell imported rows from later edits).');
+  set('Checklist Imported At', opts.live ? null : opts.importedAt, opts.live ? 'Read live from the Google Sheet on every sync.' : 'Timestamp of the initial import (used to tell imported rows from later edits).');
   set('Source Workbook', opts.sourceName, `Worksheet "${SOURCE_SHEET}" only.`);
 
   const tables: Record<string, Tab> = {};

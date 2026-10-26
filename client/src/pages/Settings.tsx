@@ -42,18 +42,24 @@ function SyncPanel() {
         <Card title="Live data connection" actions={<button className="btn btn-primary btn-sm" disabled={syncing} onClick={() => void refresh(true)}><Icon name="refresh" className={syncing ? 'spin' : ''} /> {s.state === 'error' ? 'Retry now' : 'Sync now'}</button>}>
           <dl className="dl-grid">
             <div><dt>Status</dt><dd><Tag tone={state === 'Connected' ? 'green' : state === 'Syncing' ? 'amber' : 'red'}>{state}</Tag></dd></div>
-            <div><dt>Data source</dt><dd>{s.mode === 'google' ? 'Google Sheet (live source of truth)' : <strong className="warn">Local data adapter — the Google Sheet is NOT connected</strong>}</dd></div>
+            <div><dt>Data source</dt><dd>{s.mode === 'google' ? 'Google Sheet (live source of truth, read/write)' : s.mode === 'public-sheet' ? 'Google Sheet, live through its view-only link (read-only)' : <strong className="warn">Local data adapter — the Google Sheet is NOT connected</strong>}</dd></div>
             <div><dt>Source detail</dt><dd>{s.source}</dd></div>
-            <div><dt>Refresh method</dt><dd>The server re-reads the source every <strong>{s.intervalSec}s</strong>; open browsers update automatically ({link === 'live' ? 'push connection active' : 'polling'}). Saves are written immediately and re-read.</dd></div>
+            <div><dt>Refresh method</dt><dd>The server re-reads the source every <strong>{s.intervalSec}s</strong>; open browsers update automatically ({link === 'live' ? 'push connection active' : 'polling'}). {s.readOnly ? 'Changes are made in Google Sheets.' : 'Saves are written immediately and re-read.'}</dd></div>
             <div><dt>Last successful sync</dt><dd>{s.lastSuccessAt ? `${new Date(s.lastSuccessAt).toLocaleString()} (${relTime(s.lastSuccessAt)})` : 'never'}</dd></div>
             <div><dt>Last data change</dt><dd>{s.lastChangeAt ? new Date(s.lastChangeAt).toLocaleString() : '—'}</dd></div>
             {s.lastError && <div><dt>Last error</dt><dd className="bad">{s.lastError}</dd></div>}
           </dl>
           {s.configErrors.length > 0 && <div className="notice notice-error"><Icon name="alert" /> Configuration needed:<ul>{s.configErrors.map((e, i) => <li key={i}>{e}</li>)}</ul></div>}
         </Card>
-        <Card title={s.mode === 'google' ? 'Connection details' : 'Connect the Google Sheet'} subtitle="Full instructions: README.md › “Connect the live Google Sheet”">
+        <Card title={s.mode === 'local' ? 'Connect the Google Sheet' : 'Connection details'} subtitle="Full instructions: README.md › “Connect the live Google Sheet”">
           {s.mode === 'google' ? (
             <p className="small">Connected through a Google service account (server-side only; no credentials reach the browser). Share the sheet only with the service account and the OneAlphaMed team — Sun Pharma sees data through this dashboard, which removes internal fields on the server.</p>
+          ) : s.mode === 'public-sheet' ? (
+            <ul className="small" style={{ paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <li>The sheet is read through its <strong>“Anyone with the link can view”</strong> sharing — no credentials. If that sharing is turned off, the dashboard shows a connection error.</li>
+              <li>Deliverables come from the <strong>Readiness Checklist</strong> tab. Extra columns named like the tracker fields (e.g. <em>Planned Start Date</em>, <em>Planned End Date</em>, <em>Completion Confirmed</em>, <em>Priority</em>, <em>Next Action</em>, <em>Deliverable ID</em>) are picked up automatically.</li>
+              <li>Because the link is view-only, edits are made in Google Sheets. To edit from the dashboard instead, add a service account (README §3).</li>
+            </ul>
           ) : (
             <ol className="small" style={{ paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
               <li>Upload <code>output/PN0510_Live_Tracker.xlsx</code> to Google Drive and open it as a Google Sheet (or run <code>npm run sheet:push</code> against an empty sheet).</li>

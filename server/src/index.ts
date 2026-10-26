@@ -4,6 +4,7 @@ import { loadConfig } from './config';
 import { DataService } from './DataService';
 import { FileStore } from './store/FileStore';
 import { GoogleSheetsStore } from './store/GoogleSheetsStore';
+import { PublicSheetStore } from './store/PublicSheetStore';
 import type { TableStore } from './store/types';
 
 const cfg = loadConfig();
@@ -18,8 +19,10 @@ if (cfg.production && canSignIn && cfg.configErrors.some(e => e.startsWith('JWT_
 let store: TableStore;
 if (cfg.dataSource === 'google' && cfg.sheetId && cfg.googleCredentials) {
   store = new GoogleSheetsStore(cfg.sheetId, cfg.googleCredentials);
+} else if (cfg.dataSource === 'public-sheet' && cfg.sheetId) {
+  store = new PublicSheetStore(cfg.sheetId);
 } else {
-  if (cfg.dataSource === 'google') console.warn('Google Sheets is not fully configured — falling back to the local data file.\n  ' + cfg.configErrors.join('\n  '));
+  if (cfg.dataSource !== 'local') console.warn('Google Sheets is not fully configured — falling back to the local data file.\n  ' + cfg.configErrors.join('\n  '));
   store = new FileStore(cfg.localStorePath);
 }
 

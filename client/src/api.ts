@@ -2,7 +2,9 @@ import type { Issue, Rec } from '../../shared/model';
 import type { Role, TableKey } from '../../shared/schema';
 
 export interface SyncStatus {
-  mode: 'google' | 'local';
+  mode: 'google' | 'public-sheet' | 'local';
+  /** Source is a view-only Google Sheet link: changes are made in Google Sheets. */
+  readOnly: boolean;
   source: string;
   state: 'connecting' | 'ok' | 'error';
   lastSuccessAt: string | null;
@@ -42,6 +44,16 @@ export interface Snapshot {
   sync: SyncStatus;
 }
 
+export interface Workbook {
+  tabs: { name: string; columns: number; rows: { n: number; cells: string[] }[] }[];
+  version: string;
+  readAt: string;
+  lastSuccessAt: string | null;
+  intervalSec: number;
+  masked: { tab: string; columns: string[] }[];
+  sheetUrl: string | null;
+}
+
 export class ApiError extends Error {
   constructor(readonly status: number, message: string, readonly details?: any) {
     super(message);
@@ -74,6 +86,7 @@ export const api = {
   logout: () => call('POST', '/api/auth/logout', {}),
   snapshot: (fresh = false) => call<Snapshot>('GET', fresh ? '/api/snapshot?fresh=1' : '/api/snapshot'),
   sync: () => call<{ sync: SyncStatus }>('POST', '/api/sync', {}),
+  workbook: () => call<Workbook>('GET', '/api/workbook'),
   update: (table: TableKey, key: string, changes: Record<string, unknown>, original: Record<string, unknown>) =>
     call<{ ok: boolean; record: Rec; unchanged?: boolean }>('PATCH', `/api/tables/${table}/${encodeURIComponent(key)}`, { changes, original }),
   bulk: (table: TableKey, items: BulkItem[]) => call<{ ok: boolean; updated: number }>('POST', `/api/tables/${table}/bulk`, { items }),

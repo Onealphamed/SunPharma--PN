@@ -1,20 +1,24 @@
 // Vercel serverless entry point. One Express app per function instance; the data
 // cache lives for the life of the instance and refreshes on demand (see ensureFresh).
-// Project data is never bundled into the deployment: without Google Sheets
-// credentials every data request fails with a clear "not configured" error.
+// Project data is never bundled into the deployment: it is read from the Google Sheet —
+// through a service account when one is configured, otherwise through the sheet's
+// view-only link. Without GOOGLE_SHEET_ID every data request fails with a clear error.
 import { createApp } from './app';
 import { describeUsersJson, UserDirectory } from './auth';
 import { loadConfig } from './config';
 import { DataService } from './DataService';
 import { GoogleSheetsStore } from './store/GoogleSheetsStore';
+import { PublicSheetStore } from './store/PublicSheetStore';
 import { StoreError, TableStore } from './store/types';
 
-const cfg = loadConfig({ ...process.env, SERVERLESS: 'true', DATA_SOURCE: 'google' });
+const cfg = loadConfig({ ...process.env, SERVERLESS: 'true', DATA_SOURCE: process.env.DATA_SOURCE === 'public-sheet' ? 'public-sheet' : 'google' });
 
 const store: TableStore =
   cfg.sheetId && cfg.googleCredentials
     ? new GoogleSheetsStore(cfg.sheetId, cfg.googleCredentials)
-    : {
+    : cfg.sheetId
+      ? new PublicSheetStore(cfg.sheetId)
+      : {
         kind: 'google',
         description: 'Google Sheet (not configured)',
         readTabs: () => Promise.reject(new StoreError(`Live Google Sheet not configured: ${cfg.configErrors.join(' ')}`, 503)),

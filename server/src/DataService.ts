@@ -12,7 +12,8 @@ import { canCreate, canEditField, ColumnSpec, isInternalRole, Role, TABLES, TABL
 import { StatusMap } from '../../shared/status';
 import type { SessionUser } from './auth';
 import { canReadTable, projectRecord, projectTables, visibleColumns } from './permissions';
-import { CellUpdate, StoreError, TableStore } from './store/types';
+import { READ_ONLY_MESSAGE } from './store/PublicSheetStore';
+import { CellUpdate, StoreError, StoreKind, TableStore } from './store/types';
 
 export interface SyncError {
   at: string;
@@ -23,7 +24,9 @@ export interface SyncError {
 }
 
 export interface SyncStatus {
-  mode: 'google' | 'local';
+  mode: StoreKind;
+  /** The source cannot be written from the dashboard (view-only Google Sheet link). */
+  readOnly: boolean;
   source: string;
   state: 'connecting' | 'ok' | 'error';
   lastSuccessAt: string | null;
@@ -74,6 +77,7 @@ export class DataService extends EventEmitter {
     this.setMaxListeners(500); // two per open browser tab (SSE)
     this.status = {
       mode: store.kind,
+      readOnly: !!store.readOnly,
       source: store.description,
       state: 'connecting',
       lastSuccessAt: null,
@@ -231,7 +235,7 @@ export class DataService extends EventEmitter {
       issues: internal ? this.issues : undefined,
       sync: internal
         ? this.status
-        : { ...this.status, source: this.status.mode === 'google' ? 'Google Sheet' : 'Local data', configErrors: [], recentErrors: [], lastError: this.status.lastError ? 'Live source temporarily unavailable' : null },
+        : { ...this.status, source: this.status.mode === 'local' ? 'Local data' : 'Google Sheet', configErrors: [], recentErrors: [], lastError: this.status.lastError ? 'Live source temporarily unavailable' : null },
     };
   }
 
@@ -240,7 +244,16 @@ export class DataService extends EventEmitter {
     return rows.slice(-limit).reverse();
   }
 
+  /** Every tab of the source as last read (view-only link and local sources). */
+  workbook() {
+    return this.store.workbook?.() ?? null;
+  }
+
   // ---------------------------------------------------------------- writes
+
+  private assertWritable() {
+    if (this.store.readOnly) throw new HttpError(409, READ_ONLY_MESSAGE);
+  }
 
   private exclusive<T>(fn: () => Promise<T>): Promise<T> {
     const run = this.writing.then(fn, fn);
@@ -377,6 +390,7 @@ export class DataService extends EventEmitter {
     const spec = TABLES[table];
     if (!spec) throw new HttpError(404, 'Unknown table');
     this.checkFields(user, table, Object.keys(changes));
+    this.assertWritable();
     return this.exclusive(async () => {
       try {
         const fresh = await this.store.readTabs([spec.tab]);
@@ -404,6 +418,7 @@ export class DataService extends EventEmitter {
     if (!items.length) throw new HttpError(400, 'No records supplied');
     if (items.length > 200) throw new HttpError(400, 'At most 200 records per bulk update');
     for (const it of items) this.checkFields(user, table, Object.keys(it.changes ?? {}));
+    this.assertWritable();
     return this.exclusive(async () => {
       try {
         const fresh = await this.store.readTabs([spec.tab]);
@@ -430,6 +445,7 @@ export class DataService extends EventEmitter {
     const spec = TABLES[table];
     if (!spec) throw new HttpError(404, 'Unknown table');
     if (!canCreate(user.role, table)) throw new HttpError(403, `You cannot add to ${spec.label}`);
+    this.assertWritable();
     return this.exclusive(async () => {
       try {
         const fresh = await this.store.readTabs([spec.tab]);
@@ -547,7 +563,7 @@ export class DataService extends EventEmitter {
   }
 
   private async appendAudit(rows: Record<string, string>[]) {
-    if (!rows.length) return;
+    if (!rows.length || this.store.readOnly) return;
     const spec = TABLES.audit;
     let header = this.parsed.audit?.present ? null : spec.columns.map(c => c.header);
     if (header) await this.store.ensureTabs([{ name: spec.tab, header }]);

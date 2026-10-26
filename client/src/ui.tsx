@@ -7,6 +7,7 @@ import { useData } from './data';
 
 const PATHS: Record<string, string> = {
   layers: 'M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5M3 17l9 5 9-5',
+  grid: 'M3 4h18v16H3zM3 9h18M3 14h18M9 4v16M15 4v16',
   inbox: 'M3 13h5l1 3h6l1-3h5M5 5h14l2 8v6H3v-6z',
   file: 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5',
   comment: 'M4 5h16v11H9l-5 4z',

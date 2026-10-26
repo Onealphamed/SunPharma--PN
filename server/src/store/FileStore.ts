@@ -1,9 +1,10 @@
 // JSON-file implementation of TableStore for local development and demos. The file
 // is re-read on every sync, so editing it by hand simulates an edit in the live sheet.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { RawTable } from '../../../shared/model';
-import { CellOut, CellUpdate, StoreError, TableStore } from './types';
+import { CellOut, CellUpdate, StoreError, TableStore, WorkbookSnapshot } from './types';
 
 interface FileShape {
   tabs: Record<string, { header: string[]; rows: (string | number | null)[][] }>;
@@ -20,7 +21,7 @@ export class FileStore implements TableStore {
   }
 
   private load(): FileShape {
-    if (!fs.existsSync(this.file)) throw new StoreError(`Local data file not found: ${this.file}. Run "npm run migrate" first.`, 503);
+    if (!fs.existsSync(this.file)) throw new StoreError(`Local data file not found: ${this.file}. Run "npm run import -- <checklist.xlsx>" first.`, 503);
     try {
       return JSON.parse(fs.readFileSync(this.file, 'utf8')) as FileShape;
     } catch (e) {
@@ -46,6 +47,25 @@ export class FileStore implements TableStore {
     const out: Record<string, RawTable> = {};
     for (const t of tabs) if (data.tabs[t]) out[t] = { header: data.tabs[t].header, rows: data.tabs[t].rows };
     return out;
+  }
+
+  workbook(): WorkbookSnapshot | null {
+    let data: FileShape;
+    try {
+      data = this.load();
+    } catch {
+      return null;
+    }
+    const show = (v: unknown) => (v === null || v === undefined ? '' : String(v));
+    const tabs = Object.entries(data.tabs).map(([name, t]) => {
+      const grid = [t.header, ...t.rows];
+      return {
+        name,
+        columns: Math.max(0, ...grid.map(r => r.length)),
+        rows: grid.map((r, i) => ({ n: i + 1, cells: r.map(show) })).filter(r => r.cells.some(Boolean)),
+      };
+    });
+    return { tabs, version: crypto.createHash('sha1').update(JSON.stringify(data.tabs)).digest('hex').slice(0, 10), readAt: new Date(fs.statSync(this.file).mtimeMs).toISOString().replace(/\.\d{3}Z$/, 'Z') };
   }
 
   updateCells(tab: string, updates: CellUpdate[]): Promise<void> {

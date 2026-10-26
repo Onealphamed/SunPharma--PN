@@ -21,8 +21,17 @@ export interface FailedSave {
 }
 
 interface DataCtx {
+  /**
+   * The user as far as editing is concerned: when the source is a view-only sheet link,
+   * everyone is read-only (role "client"), so no edit control is shown.
+   */
   user: SessionUser;
+  /** The signed-in account (or visitor), for display. */
+  account: SessionUser;
+  /** Team member: sees internal data and pages. */
   internal: boolean;
+  /** Changes are made in Google Sheets, not in the dashboard. */
+  readOnly: boolean;
   snap: Snapshot;
   project: Project;
   link: Link;
@@ -204,10 +213,12 @@ export function DataProvider({ initial, children, onSignedOut }: { initial: Snap
     toast(`Archived ${rec._key}`);
   }, [refresh, toast, tracked, recordFailure]);
 
+  const readOnly = !!snap.sync.readOnly;
   const canEditCol = useCallback(
-    (table: TableKey, key: string) => (snap.columns[table] ?? []).includes(key),
-    [snap.columns],
+    (table: TableKey, key: string) => !readOnly && (snap.columns[table] ?? []).includes(key),
+    [snap.columns, readOnly],
   );
+  const user = useMemo<SessionUser>(() => (readOnly ? { ...snap.user, role: 'client' } : snap.user), [snap.user, readOnly]);
 
   const setAsOf = (d: string | null) => {
     try {
@@ -219,7 +230,7 @@ export function DataProvider({ initial, children, onSignedOut }: { initial: Snap
     setAsOfState(d);
   };
 
-  const value: DataCtx = { user: snap.user, internal, snap, project, link, syncing: busy > 0, lastFetched, failures, asOf, setAsOf, refresh, update, bulkUpdate, create, archive, toast, canEditCol };
+  const value: DataCtx = { user, account: snap.user, internal, readOnly, snap, project, link, syncing: busy > 0, lastFetched, failures, asOf, setAsOf, refresh, update, bulkUpdate, create, archive, toast, canEditCol };
   return (
     <Ctx.Provider value={value}>
       {children}

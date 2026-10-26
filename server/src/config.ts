@@ -5,7 +5,12 @@ import type { GoogleCredentials } from './store/GoogleSheetsStore';
 export interface AppConfig {
   port: number;
   production: boolean;
-  dataSource: 'google' | 'local';
+  /**
+   * google       = Sheets API with a service account (read/write)
+   * public-sheet = the sheet's "Anyone with the link can view" export (read-only, no credentials)
+   * local        = data/local-store.json
+   */
+  dataSource: 'google' | 'public-sheet' | 'local';
   localStorePath: string;
   sheetId: string | null;
   googleCredentials: GoogleCredentials | null;
@@ -46,14 +51,25 @@ function readCredentials(errors: string[]): GoogleCredentials | null {
   }
 }
 
+/** Accepts the bare ID or a full sheet URL pasted into the setting. */
+export function sheetIdFrom(v: string | undefined): string | null {
+  const s = (v ?? '').trim();
+  if (!s) return null;
+  return s.match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/)?.[1] ?? s;
+}
+
 export function loadConfig(env = process.env): AppConfig {
   const errors: string[] = [];
   const production = env.NODE_ENV === 'production';
-  const dataSource = (env.DATA_SOURCE ?? 'local') === 'google' ? 'google' : 'local';
-  const creds = dataSource === 'google' ? readCredentials(errors) : null;
-  if (dataSource === 'google') {
-    if (!env.GOOGLE_SHEET_ID) errors.push('GOOGLE_SHEET_ID is not set.');
-    if (!creds && !errors.length) errors.push('GOOGLE_SERVICE_ACCOUNT_JSON (or GOOGLE_APPLICATION_CREDENTIALS) is not set.');
+  const requested = (env.DATA_SOURCE ?? 'local').trim().toLowerCase();
+  const sheetId = sheetIdFrom(env.GOOGLE_SHEET_ID);
+  let dataSource: AppConfig['dataSource'] = 'local';
+  let creds: GoogleCredentials | null = null;
+  if (requested === 'google' || requested === 'public-sheet') {
+    if (!sheetId) errors.push('GOOGLE_SHEET_ID is not set.');
+    if (requested === 'google') creds = readCredentials(errors);
+    // Without a service account the sheet is read through its view-only link.
+    dataSource = creds ? 'google' : 'public-sheet';
   }
   // Trim: values pasted into hosting dashboards often carry a trailing newline or spaces.
   let jwtSecret = (env.JWT_SECRET ?? '').trim();
@@ -69,9 +85,9 @@ export function loadConfig(env = process.env): AppConfig {
     production,
     dataSource,
     localStorePath: env.LOCAL_STORE_PATH ?? 'data/local-store.json',
-    sheetId: env.GOOGLE_SHEET_ID ?? null,
+    sheetId,
     googleCredentials: creds,
-    syncIntervalSec: Math.max(10, Number(env.SYNC_INTERVAL_SECONDS ?? 30)),
+    syncIntervalSec: Math.max(10, Number(env.SYNC_INTERVAL_SECONDS ?? (dataSource === 'public-sheet' ? 15 : 30)) || 30),
     jwtSecret,
     sessionHours: Number(env.SESSION_HOURS ?? 12),
     usersFile: env.USERS_FILE ?? 'config/users.json',

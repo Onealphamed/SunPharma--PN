@@ -6,6 +6,7 @@ import { DataProvider, useData } from './data';
 import { Login } from './Login';
 import { Approvals } from './pages/Approvals';
 import { Gantt } from './pages/Gantt';
+import { LiveSheet } from './pages/LiveSheet';
 import { Meetings } from './pages/Meetings';
 import { Phases } from './pages/Phases';
 import { Reports } from './pages/Reports';
@@ -15,10 +16,12 @@ import { Summary } from './pages/Summary';
 import { Tracker } from './pages/Tracker';
 import { Icon, relTime, useTick } from './ui';
 
-export type Page = 'summary' | 'tracker' | 'phases' | 'timeline' | 'risks' | 'approvals' | 'meetings' | 'reports' | 'settings';
+export type Page = 'summary' | 'sheet' | 'tracker' | 'phases' | 'timeline' | 'risks' | 'approvals' | 'meetings' | 'reports' | 'settings';
 
-const NAV: { page: Page; label: string; icon: string; internalOnly?: boolean }[] = [
+/** internalOnly: team only. sheetLink: also shown to everyone when the source is the view-only sheet link. */
+const NAV: { page: Page; label: string; icon: string; internalOnly?: boolean; sheetLink?: boolean }[] = [
   { page: 'summary', label: 'Executive Summary', icon: 'overview' },
+  { page: 'sheet', label: 'Live sheet', icon: 'grid', internalOnly: true, sheetLink: true },
   { page: 'tracker', label: 'Deliverables Tracker', icon: 'list' },
   { page: 'phases', label: 'Project Phases', icon: 'layers' },
   { page: 'timeline', label: 'Timeline / Gantt', icon: 'gantt' },
@@ -106,7 +109,7 @@ function SyncIndicator() {
   const s = snap.sync;
   const error = s.state === 'error' || link === 'offline';
   const state = error ? 'Connection Error' : syncing || s.state === 'connecting' ? 'Syncing' : 'Connected';
-  const source = s.mode === 'google' ? 'Google Sheet' : 'Local data (Google Sheet not connected)';
+  const source = s.mode === 'google' ? 'Google Sheet' : s.mode === 'public-sheet' ? 'Google Sheet (live)' : 'Local data (Google Sheet not connected)';
   const title = [
     `Status: ${state}`,
     `Source: ${s.source}`,
@@ -116,7 +119,7 @@ function SyncIndicator() {
     s.lastError ? `Last error: ${s.lastError}` : '',
   ].filter(Boolean).join('\n');
   return (
-    <div className={`sync ${error ? 'sync-error' : syncing ? 'sync-polling' : s.mode === 'google' ? 'sync-live' : 'sync-polling'}`} title={title} role="status" aria-live="polite">
+    <div className={`sync ${error ? 'sync-error' : syncing ? 'sync-polling' : s.mode !== 'local' ? 'sync-live' : 'sync-polling'}`} title={title} role="status" aria-live="polite">
       <span className="dot" />
       <span className="sync-label">
         <strong>{state}</strong> · {source} · last sync {relTime(s.lastSuccessAt)}
@@ -130,11 +133,12 @@ function SyncIndicator() {
 }
 
 function Shell({ onSignOut, onSignIn }: { onSignOut: () => void; onSignIn: () => void }) {
-  const { user, internal, project, asOf, setAsOf, snap, refresh } = useData();
+  const { account: user, internal, project, asOf, setAsOf, snap, refresh } = useData();
   const { page, params } = useRoute();
   const [navOpen, setNavOpen] = useState(false);
   useEffect(() => setNavOpen(false), [page]);
-  const items = NAV.filter(n => internal || !n.internalOnly);
+  const sheetLink = snap.sync.mode === 'public-sheet';
+  const items = NAV.filter(n => internal || !n.internalOnly || (n.sheetLink && sheetLink));
   const errors = (snap.issues ?? []).filter(i => i.severity === 'error').length;
   const pendingClient = project.approvals.filter(a => !a.decided).length + project.deliverables.filter(d => d.isClientInput && !d.complete).length;
 
@@ -209,8 +213,14 @@ function Shell({ onSignOut, onSignIn }: { onSignOut: () => void; onSignIn: () =>
             <Icon name="alert" /> Running on the local data adapter — the Google Sheet is not connected yet, so this is not live. <a href="#/settings?tab=sync">Connection set-up</a>
           </div>
         )}
+        {internal && snap.sync.readOnly && (
+          <div className="banner banner-info no-print">
+            <Icon name="link" /> Live from the Google Sheet. To change anything, edit the sheet — the dashboard picks it up within about {snap.sync.intervalSec} seconds.
+          </div>
+        )}
         <main id="main" tabIndex={-1}>
           {page === 'summary' && <Summary />}
+          {page === 'sheet' && (internal || sheetLink) && <LiveSheet />}
           {page === 'tracker' && <Tracker params={params} />}
           {page === 'phases' && <Phases params={params} />}
           {page === 'timeline' && <Gantt />}

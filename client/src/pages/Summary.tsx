@@ -11,7 +11,7 @@ import { BarList, Card, Empty, FlagBadge, HealthPill, Icon, Kpi, PlanDate, Progr
 import { useSetting } from './settingsHelpers';
 
 export function Summary() {
-  const { project: p, snap, internal, user } = useData();
+  const { project: p, snap, internal, account: user, readOnly } = useData();
   const s = p.settings;
   const k = p.kpis;
   const filter = (f: string) => go('tracker', { filter: f });
@@ -48,13 +48,13 @@ export function Summary() {
             <span><strong>Data last synced</strong> {relTime(snap.sync.lastSuccessAt)}</span>
             <span><strong>Reporting date</strong> {fmtDate(p.today, { weekday: true })}</span>
           </div>
-          {internal && (
+          {internal && !readOnly && (
             <div className="row no-print" style={{ marginTop: 6 }}>
               <button className="btn btn-primary" onClick={() => go('meetings', { new: '1' })}><Icon name="plus" /> Add Meeting Notes</button>
               <button className="btn" onClick={() => go('reports', { report: 'executive' })}><Icon name="file" /> Executive report</button>
             </div>
           )}
-          {!internal && (
+          {(!internal || readOnly) && (
             <div className="row no-print" style={{ marginTop: 6 }}>
               <button className="btn" onClick={() => go('reports', { report: 'executive' })}><Icon name="file" /> Download executive report</button>
             </div>

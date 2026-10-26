@@ -11,6 +11,9 @@ import { DataService, HttpError, storeErrorStatus } from './DataService';
 import { buildExport, toCsv, toXlsx } from './export';
 import { canReadTable } from './permissions';
 
+/** Column headers whose values are personal contact details, masked for anyone not signed in. */
+export const SENSITIVE_HEADER = /phone|mobile|e-?mail|whats ?app|address|dietary|pan\b|aadhaar|bank|account no/i;
+
 export function createApp(cfg: AppConfig, data: DataService, users: UserDirectory) {
   const app = express();
   app.disable('x-powered-by');
@@ -153,6 +156,34 @@ export function createApp(cfg: AppConfig, data: DataService, users: UserDirector
   app.get('/api/audit', requireRole('editor'), (req, res) => {
     const recordId = typeof req.query.recordId === 'string' ? req.query.recordId : undefined;
     res.json({ entries: data.auditFor(recordId, Number(req.query.limit ?? 300)) });
+  });
+
+  // Every tab of the source exactly as it stands ("Live sheet" page). The team sees all of it.
+  // Others only when the source is the view-only link (already readable by anyone with the
+  // link), and then with contact-detail columns masked.
+  app.get('/api/workbook', requireRole('client'), (req, res) => {
+    const internal = isInternalRole(req.user!.role);
+    if (!internal && data.status.mode !== 'public-sheet') throw new HttpError(403, 'The live sheet view is available to the project team only.');
+    const wb = data.workbook();
+    if (!wb) throw new HttpError(404, 'The live sheet view is not available for this data source yet.');
+    const masked: { tab: string; columns: string[] }[] = [];
+    const tabs = internal ? wb.tabs : wb.tabs.map(t => {
+      const header = t.rows[0]?.cells ?? [];
+      const cols = header.map((h, i) => (SENSITIVE_HEADER.test(h) ? i : -1)).filter(i => i >= 0);
+      if (!cols.length) return t;
+      masked.push({ tab: t.name, columns: cols.map(i => header[i]) });
+      return { ...t, rows: t.rows.map((r, ri) => (ri === 0 ? r : { ...r, cells: r.cells.map((c, ci) => (cols.includes(ci) && c ? '•••' : c)) })) };
+    });
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      ...wb,
+      tabs,
+      masked,
+      intervalSec: data.status.intervalSec,
+      lastSuccessAt: data.status.lastSuccessAt,
+      // The sheet link is only shown to the team: visitors would otherwise reach the unmasked sheet.
+      sheetUrl: internal && cfg.sheetId && data.status.mode !== 'local' ? `https://docs.google.com/spreadsheets/d/${cfg.sheetId}/edit` : null,
+    });
   });
 
   app.post('/api/export', requireRole('client'), wrap(async (req, res) => {
