@@ -30,15 +30,21 @@ const jwtError = cfg.configErrors.find(e => e.startsWith('JWT_SECRET'));
 
 // USERS_JSON is parsed lazily at sign-in; check it up front so a bad paste is reported clearly.
 let usersError: string | null = null;
+let userCount = 0;
 try {
-  const n = new UserDirectory(cfg).list().length;
-  if (!n) usersError = process.env.USERS_JSON ? 'USERS_JSON contains no valid users.' : 'USERS_JSON is not set for this environment.';
+  userCount = new UserDirectory(cfg).list().length;
+  if (!userCount) usersError = process.env.USERS_JSON ? 'USERS_JSON contains no valid users.' : 'USERS_JSON is not set for this environment.';
 } catch {
   usersError = `USERS_JSON is not valid JSON (${describeUsersJson(process.env.USERS_JSON)}). Re-paste the single line printed by scripts/users-json.mjs.`;
 }
 
+// Open access needs no accounts. Sessions are only issued when team accounts exist, and then a
+// real JWT_SECRET is mandatory; a mis-pasted USERS_JSON is always reported.
+const problem = cfg.publicAccess
+  ? (process.env.USERS_JSON && usersError) || (userCount > 0 ? jwtError : undefined)
+  : jwtError ?? usersError;
+
 export default function handler(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) {
-  const problem = jwtError ?? usersError;
   if (problem) {
     // Refuse to run half-configured (e.g. signing sessions with the development fallback secret).
     res.statusCode = 503;

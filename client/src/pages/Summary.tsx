@@ -154,7 +154,7 @@ export function Summary() {
 
       <div className="split">
         <PendingList
-          title={user.role === 'client' ? 'Awaiting Sun Pharma (your inputs & approvals)' : 'Pending client inputs — awaiting Sun Pharma'}
+          title={user.role === 'client' && !user.public ? 'Awaiting Sun Pharma (your inputs & approvals)' : 'Pending client inputs — awaiting Sun Pharma'}
           subtitle="Lead = Sun, Client Input items, and approvals awaiting a decision"
           items={awaitingSun.map(d => ({ key: d.key, id: d.id, name: plainName(d.name), tag: d.isClientInput ? 'Input' : d.pendingApproval || d.isApprovalGate ? 'Approval' : d.type || 'Task', who: d.sunOwner || d.leadFunction, due: d.end, overdue: d.overdue }))}
           actions={sunActions}

@@ -27,6 +27,8 @@ export interface SessionUser {
   name: string;
   role: Role;
   dev?: boolean;
+  /** Anonymous visitor (open access). */
+  public?: boolean;
 }
 
 export interface Snapshot {
@@ -65,7 +67,7 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
 }
 
 export const api = {
-  authConfig: () => call<{ devLogin: boolean; mode: string }>('GET', '/api/auth/config'),
+  authConfig: () => call<{ devLogin: boolean; mode: string; publicAccess: boolean }>('GET', '/api/auth/config'),
   me: () => call<{ user: SessionUser }>('GET', '/api/auth/me'),
   login: (email: string, password: string) => call<{ user: SessionUser }>('POST', '/api/auth/login', { email, password }),
   devLogin: (role: Role) => call<{ user: SessionUser }>('POST', '/api/auth/dev-login', { role }),

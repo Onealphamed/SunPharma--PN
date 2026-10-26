@@ -94,6 +94,14 @@ npm run dev
 
 ## 4. Users, roles and client sharing
 
+**Open access (the default).** Anyone with the link sees the dashboard immediately, with no sign-in:
+- Visitors get the read-only **client** view. The server still removes everything internal (see below), so only items marked Client / Client Visible are shown.
+- Visitors cannot change anything. The team updates data in the Google Sheet, which reaches the dashboard within the sync interval.
+- **Team sign-in** (bottom of the sidebar) is optional. It's only needed to edit from the dashboard itself, and needs accounts plus `JWT_SECRET`.
+- With no accounts configured, Vercel needs only `GOOGLE_SHEET_ID` and `GOOGLE_SERVICE_ACCOUNT_JSON`.
+- Set `PUBLIC_ACCESS=false` to require sign-in for everyone again.
+- Remember that open means anyone the link is forwarded to can read the client view, and search engines are told not to index it (`noindex`). Keep internal content marked Internal.
+
 | Role | Sees | Can change |
 |---|---|---|
 | `admin` (Project Manager) | Everything, including internal notes, audit log and data quality | All fields, including baselines, phase/workstream, Client Visible, statuses, settings and the executive narrative. Can archive (soft-delete) rows. |
@@ -169,10 +177,9 @@ The app is one Node service: API plus the built React client.
 
 1. Push the repo to GitHub and import it in Vercel.
 2. In *Settings → Environment Variables* (Production), set:
-   - `JWT_SECRET` (`C:\Users\Admin\.tools\new-jwt-secret.ps1` puts one on the clipboard)
-   - `USERS_JSON`
    - `GOOGLE_SHEET_ID`
    - `GOOGLE_SERVICE_ACCOUNT_JSON`
+   - Only if you want team sign-in for editing: `JWT_SECRET` (`C:\Users\Admin\.tools\new-jwt-secret.ps1` puts one on the clipboard) and `USERS_JSON`
 3. Redeploy.
 
 On Vercel, each request refreshes data older than the sync interval and browsers poll (there is no push channel). Direct sheet edits are not written to the Audit Log there, because several function instances would log duplicates.
@@ -190,8 +197,8 @@ docker run -p 8080:8080 --env-file .env.production pn0510-dashboard
 Without Docker: `npm ci && npm run build && npm start`. Run **one instance**: the background poller and the sheet-edit audit assume a single server.
 
 **Sharing with the client:**
-- Deploy behind HTTPS.
-- Create one `client` account per Sun Pharma user and send each password privately.
+- Deploy behind HTTPS (Vercel does this).
+- With open access, send the dashboard URL. No accounts or passwords are needed to view. With `PUBLIC_ACCESS=false`, create one `client` account per person instead.
 - Share only the dashboard URL, never the sheet.
 - Search engines are told not to index the site (`noindex`).
 
@@ -204,8 +211,9 @@ See `.env.example`. Secrets are read only by the server and never bundled into t
 | `DATA_SOURCE` | yes | `google` (live) or `local` |
 | `GOOGLE_SHEET_ID` | google | Spreadsheet ID |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | google | Service-account key as JSON or base64 (or `GOOGLE_APPLICATION_CREDENTIALS` = a key file path) |
-| `JWT_SECRET` | production | 32+ random characters; the server refuses to start in production without it |
-| `USERS_FILE` / `USERS_JSON` | yes | User accounts (bcrypt hashes) |
+| `PUBLIC_ACCESS` | no | Default `true`: read-only view without sign-in. `false` requires sign-in for everyone |
+| `JWT_SECRET` | if anyone can sign in | 32+ random characters; required in production whenever accounts exist or `PUBLIC_ACCESS=false` |
+| `USERS_FILE` / `USERS_JSON` | if anyone can sign in | User accounts (bcrypt hashes); not needed for open access without team sign-in |
 | `SYNC_INTERVAL_SECONDS` | no | Poll interval, default 30 |
 | `PROJECT_TIME_ZONE` | no | Defines "today" (default `Asia/Kolkata`) |
 | `ALLOW_DEV_LOGIN` | no | One-click development sign-in; ignored in production |

@@ -84,13 +84,17 @@ export default function App() {
         <button className="btn btn-primary" onClick={() => void load()}>Try again</button>
       </div>
     );
-  if (state.phase === 'login') return <Login onSignedIn={load} />;
+  if (state.phase === 'login') return <Login onSignedIn={load} onCancel={load} />;
   return (
-    <DataProvider initial={state.snap} onSignedOut={() => setState({ phase: 'login' })}>
-      <Shell onSignOut={async () => {
-        await api.logout().catch(() => undefined);
-        setState({ phase: 'login' });
-      }} />
+    <DataProvider initial={state.snap} onSignedOut={() => void load()}>
+      <Shell
+        onSignIn={() => setState({ phase: 'login' })}
+        onSignOut={async () => {
+          await api.logout().catch(() => undefined);
+          // With open access this returns to the visitor view; otherwise to the sign-in page.
+          await load();
+        }}
+      />
     </DataProvider>
   );
 }
@@ -125,7 +129,7 @@ function SyncIndicator() {
   );
 }
 
-function Shell({ onSignOut }: { onSignOut: () => void }) {
+function Shell({ onSignOut, onSignIn }: { onSignOut: () => void; onSignIn: () => void }) {
   const { user, internal, project, asOf, setAsOf, snap, refresh } = useData();
   const { page, params } = useRoute();
   const [navOpen, setNavOpen] = useState(false);
@@ -157,13 +161,27 @@ function Shell({ onSignOut }: { onSignOut: () => void }) {
           ))}
         </nav>
         <div className="sidebar-foot">
-          <div className="who">
-            <strong>{user.name}</strong>
-            <span>{ROLE_LABEL[user.role]}{user.dev ? ' · dev' : ''}</span>
-          </div>
-          <button className="btn btn-ghost" onClick={onSignOut}>
-            <Icon name="logout" /> Sign out
-          </button>
+          {user.public ? (
+            <>
+              <div className="who">
+                <strong>Read-only view</strong>
+                <span>Open access · no sign-in needed</span>
+              </div>
+              <button className="btn btn-ghost" onClick={onSignIn}>
+                <Icon name="logout" /> Team sign-in
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="who">
+                <strong>{user.name}</strong>
+                <span>{ROLE_LABEL[user.role]}{user.dev ? ' · dev' : ''}</span>
+              </div>
+              <button className="btn btn-ghost" onClick={onSignOut}>
+                <Icon name="logout" /> Sign out
+              </button>
+            </>
+          )}
         </div>
       </aside>
       <div className="main-col">

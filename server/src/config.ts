@@ -17,6 +17,12 @@ export interface AppConfig {
   allowDevLogin: boolean;
   cookieSecure: boolean;
   timeZone: string;
+  /**
+   * Open access: visitors see the read-only client view without signing in (internal data is
+   * still stripped on the server). Team sign-in remains available for editing. Default on;
+   * set PUBLIC_ACCESS=false to require sign-in for everyone.
+   */
+  publicAccess: boolean;
   /** Running as short-lived functions (Vercel): no background poller or push channel. */
   serverless: boolean;
   /** Problems that prevent the configured mode from working (reported in /api/health). */
@@ -73,6 +79,7 @@ export function loadConfig(env = process.env): AppConfig {
     allowDevLogin,
     cookieSecure: env.COOKIE_SECURE ? env.COOKIE_SECURE === 'true' : production,
     timeZone: env.PROJECT_TIME_ZONE ?? 'Asia/Kolkata',
+    publicAccess: (env.PUBLIC_ACCESS ?? 'true').trim().toLowerCase() !== 'false',
     serverless: env.VERCEL === '1' || env.SERVERLESS === 'true',
     configErrors: errors,
   };

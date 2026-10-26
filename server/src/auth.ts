@@ -22,7 +22,12 @@ export interface SessionUser {
   name: string;
   role: Role;
   dev?: boolean;
+  /** Anonymous visitor in open-access mode (client view, no session). */
+  public?: boolean;
 }
+
+/** The identity given to anyone who has not signed in when open access is on. */
+export const PUBLIC_VISITOR: SessionUser = { email: 'public', name: 'Visitor', role: 'client', public: true };
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -124,6 +129,8 @@ export function authenticate(cfg: AppConfig, users: UserDirectory) {
         /* invalid or expired token → anonymous */
       }
     }
+    // Open access: anyone not signed in is a read-only visitor with the client view.
+    if (!req.user && cfg.publicAccess) req.user = PUBLIC_VISITOR;
     next();
   };
 }

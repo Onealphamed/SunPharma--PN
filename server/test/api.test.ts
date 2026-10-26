@@ -13,11 +13,11 @@ import { tempStore } from './fixture';
 
 const H = { 'x-requested-with': 'sunpm' };
 
-async function setup(storeOverride?: (s: FileStore) => TableStore) {
+async function setup(storeOverride?: (s: FileStore) => TableStore, extraEnv: Record<string, string> = {}) {
   const file = tempStore();
   const usersFile = path.join(path.dirname(file), 'users.json');
   fs.writeFileSync(usersFile, JSON.stringify([{ email: 'pm@oam.test', name: 'Test PM', role: 'admin', passwordHash: bcrypt.hashSync('correct-horse-battery', 4) }]));
-  const cfg = loadConfig({ NODE_ENV: 'test', ALLOW_DEV_LOGIN: 'true', JWT_SECRET: 'x'.repeat(40), USERS_FILE: usersFile, DATA_SOURCE: 'local', LOCAL_STORE_PATH: file } as NodeJS.ProcessEnv);
+  const cfg = loadConfig({ NODE_ENV: 'test', ALLOW_DEV_LOGIN: 'true', JWT_SECRET: 'x'.repeat(40), USERS_FILE: usersFile, DATA_SOURCE: 'local', LOCAL_STORE_PATH: file, PUBLIC_ACCESS: 'false', ...extraEnv } as NodeJS.ProcessEnv);
   const fileStore = new FileStore(file);
   const store = storeOverride ? storeOverride(fileStore) : fileStore;
   const data = new DataService(store, { intervalSec: 30, timeZone: 'Asia/Kolkata' });
@@ -60,6 +60,35 @@ describe('authentication', () => {
   it('disables dev login in production', () => {
     const cfg = loadConfig({ NODE_ENV: 'production', ALLOW_DEV_LOGIN: 'true', JWT_SECRET: 'y'.repeat(40) } as NodeJS.ProcessEnv);
     expect(cfg.allowDevLogin).toBe(false);
+  });
+});
+
+describe('open access (default)', () => {
+  it('is on unless PUBLIC_ACCESS=false', () => {
+    expect(loadConfig({} as NodeJS.ProcessEnv).publicAccess).toBe(true);
+    expect(loadConfig({ PUBLIC_ACCESS: 'false' } as NodeJS.ProcessEnv).publicAccess).toBe(false);
+  });
+  it('shows visitors exactly the client view, read-only, without signing in', async () => {
+    const open = await setup(undefined, { PUBLIC_ACCESS: 'true' });
+    const visitor = await request(open.app).get('/api/snapshot').expect(200);
+    expect(visitor.body.user).toMatchObject({ role: 'client', public: true });
+    const client = await (await open.agent('client')).get('/api/snapshot').expect(200);
+    expect(visitor.body.tables).toEqual(client.body.tables);
+    const body = JSON.stringify(visitor.body);
+    expect(body).not.toMatch(/secret/);
+    expect(body).not.toContain('Internal-only task');
+    expect(visitor.body.issues).toBeUndefined();
+    // No writes, audit or forced re-reads for visitors.
+    await request(open.app).patch('/api/tables/deliverables/PN-1.2.02').set(H).send({ changes: { status: 'In Review' } }).expect(403);
+    await request(open.app).post('/api/tables/comments').set(H).send({ values: { deliverableId: 'PN-1.2.02', comment: 'x' } }).expect(403);
+    await request(open.app).post('/api/sync').set(H).expect(403);
+    await request(open.app).get('/api/audit').expect(403);
+    expect(open.cell('Deliverables', 'PN-1.2.02', 'Status')).toBe('In Progress');
+    // Team sign-in still works and still has edit rights.
+    const a = request.agent(open.app);
+    await a.post('/api/auth/login').set(H).send({ email: 'pm@oam.test', password: 'correct-horse-battery' }).expect(200);
+    await a.patch('/api/tables/deliverables/PN-1.2.02').set(H).send({ changes: { status: 'In Review' } }).expect(200);
+    open.data.stop();
   });
 });
 

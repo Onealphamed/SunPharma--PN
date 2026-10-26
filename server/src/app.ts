@@ -46,7 +46,8 @@ export function createApp(cfg: AppConfig, data: DataService, users: UserDirector
   if (cfg.serverless) {
     app.use('/api', (req, _res, next) => {
       if (!req.user) return next(); // anonymous requests never trigger Sheets reads
-      const p = req.query.fresh ? data.sync('poll') : data.ensureFresh();
+      // Only signed-in team members may force a re-read; visitors share the interval cache.
+      const p = req.query.fresh && isInternalRole(req.user.role) ? data.sync('poll') : data.ensureFresh();
       p.then(() => next(), next);
     });
   }
@@ -67,7 +68,7 @@ export function createApp(cfg: AppConfig, data: DataService, users: UserDirector
     res.json({ ok: data.status.state === 'ok', state: data.status.state, mode: data.status.mode, version: data.status.version, configErrors: internal ? data.status.configErrors : undefined });
   });
 
-  app.get('/api/auth/config', (_req, res) => res.json({ devLogin: cfg.allowDevLogin, mode: data.status.mode }));
+  app.get('/api/auth/config', (_req, res) => res.json({ devLogin: cfg.allowDevLogin, mode: data.status.mode, publicAccess: cfg.publicAccess }));
 
   app.post('/api/auth/login', loginLimiter, wrap(async (req, res) => {
     const { email, password } = req.body ?? {};
@@ -158,8 +159,8 @@ export function createApp(cfg: AppConfig, data: DataService, users: UserDirector
     const table = req.body?.table as TableKey;
     if (!TABLES[table] || !canReadTable(req.user!.role, table)) throw new HttpError(403, 'Not permitted');
     const keys = Array.isArray(req.body?.keys) ? req.body.keys.map(String) : undefined;
-    // Exports always reflect the latest sheet: re-read first (a no-op if nothing changed).
-    await data.sync('poll');
+    // Exports reflect the latest sheet: the team re-reads first; visitors get data no older than the sync interval.
+    await (isInternalRole(req.user!.role) ? data.sync('poll') : data.ensureFresh());
     const sheet = buildExport(req.user!.role, table, data.records, data.today(), { lastSync: data.status.lastSuccessAt, source: data.status.mode === 'google' ? 'Google Sheet (live)' : 'Local data adapter (Google Sheet not connected)' }, keys);
     const stamp = data.today();
     const base = `PN0510_${TABLES[table].label.replace(/\W+/g, '-')}_${stamp}`;

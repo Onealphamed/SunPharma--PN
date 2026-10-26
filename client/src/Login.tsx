@@ -3,15 +3,16 @@ import type { Role } from '../../shared/schema';
 import { api } from './api';
 import { Icon } from './ui';
 
-export function Login({ onSignedIn }: { onSignedIn: () => void }) {
+export function Login({ onSignedIn, onCancel }: { onSignedIn: () => void; onCancel?: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dev, setDev] = useState(false);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    api.authConfig().then(c => setDev(c.devLogin)).catch(() => undefined);
+    api.authConfig().then(c => { setDev(c.devLogin); setOpen(c.publicAccess); }).catch(() => undefined);
   }, []);
 
   const submit = async (e: React.FormEvent) => {
@@ -53,7 +54,14 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
           </div>
         )}
         <button className="btn btn-primary btn-block" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-        <p className="muted small">Access is by invitation. Contact the OneAlphaMed project manager if you need an account.</p>
+        {open ? (
+          <>
+            <p className="muted small">Team sign-in is only needed to edit from the dashboard. Everyone else can view without signing in.</p>
+            {onCancel && <button type="button" className="btn btn-block" onClick={onCancel}>← Back to the dashboard</button>}
+          </>
+        ) : (
+          <p className="muted small">Access is by invitation. Contact the OneAlphaMed project manager if you need an account.</p>
+        )}
         {dev && (
           <div className="dev-login">
             <div className="small"><strong>Development sign-in</strong> (disabled in production)</div>
