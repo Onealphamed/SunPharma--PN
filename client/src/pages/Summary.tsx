@@ -1,327 +1,211 @@
-// Executive Summary — the landing page. Everything here is calculated from the live
-// tracker; nothing is typed in except the PM's optional narrative edit.
-import { useEffect, useState } from 'react';
+// Executive Summary — the landing page, laid out like the EAN tracker's executive view:
+// header, KPI tiles, "where it's pending — and with whom", then charts. Numbers and charts
+// only; every figure is calculated from the live tracker and links to it.
+import { ReactNode } from 'react';
 import { fmtDate } from '../../../shared/dates';
-import { norm, Rec } from '../../../shared/model';
-import { HEALTH_LABEL, isOpenAction, narrativeText, plainName } from '../../../shared/project';
-import { api } from '../api';
+import { Deliverable, HEALTH_LABEL, plainName } from '../../../shared/project';
+import { CATEGORY_COLOR, CHART_ORDER, COMPLETE_COLOR } from '../../../shared/status';
 import { go } from '../App';
+import { ChartCard, ChartKey, CompletionBars, Counts, HBars, pct, Series, StackBar, StackRows, TooltipLayer } from '../charts';
 import { useData } from '../data';
-import { BarList, Card, Empty, FlagBadge, HealthPill, Icon, Kpi, PlanDate, Progress, relTime, StatusBadge, Tag } from '../ui';
-import { useSetting } from './settingsHelpers';
+import { PROGRESS_HELP, progressOf } from '../progress';
+import { HealthPill, Icon, PlanDate, Progress, relTime } from '../ui';
+
+const OAM_COLOR = '#2a78d6';
+const SUN_COLOR = '#f5911f';
+const TYPES = ['Task', 'Approval Gate', 'Client Input', 'Milestone'];
 
 export function Summary() {
-  const { project: p, snap, internal, account: user, readOnly } = useData();
+  const { project: p, snap, internal, readOnly } = useData();
   const s = p.settings;
   const k = p.kpis;
+  const ds = p.deliverables;
   const filter = (f: string) => go('tracker', { filter: f });
-  const open = p.deliverables.filter(d => !d.complete);
-  const statusRows = p.statuses.list.map(def => ({ key: def.status, label: <StatusBadge status={def.status} />, value: open.filter(d => d.status === def.status).length, title: `${def.status}: ${def.definition}` }));
-  const unset = open.filter(d => d.category === 'Unmapped').length;
-  if (unset) statusRows.push({ key: '(none)', label: <StatusBadge status={null} />, value: unset, title: 'No recognised status' });
-  if (k.completed) statusRows.push({ key: 'complete', label: <span className="badge" style={{ ['--c' as string]: '#15803d' }}><span className="dot" />Complete (confirmed)</span>, value: k.completed, title: 'Completion Confirmed = Yes' });
 
-  const majors = p.deliverables.filter(d => !d.complete && (d.isMilestone || d.keyMilestone || d.isApprovalGate));
-  const upcoming = [...majors.filter(d => d.end).sort((a, b) => a.end!.localeCompare(b.end!)), ...majors.filter(d => !d.end)].slice(0, 8);
-  const attention = [...p.deliverables.filter(d => d.overdue).sort((a, b) => b.overdueDays - a.overdueDays), ...p.deliverables.filter(d => d.atRisk)];
-  const awaitingSun = open.filter(d => d.awaiting === 'Sun Pharma').sort((a, b) => (a.end ?? '9').localeCompare(b.end ?? '9') || a.sortOrder - b.sortOrder);
-  const awaitingOam = open.filter(d => d.awaiting === 'OneAlphaMed').sort((a, b) => (a.end ?? '9').localeCompare(b.end ?? '9') || a.sortOrder - b.sortOrder);
-  const actions = (p.tables.actions ?? []).filter(isOpenAction);
-  const sunActions = actions.filter(a => norm(a.ownerOrg) === 'sun pharma');
-  const oamActions = actions.filter(a => norm(a.ownerOrg) !== 'sun pharma');
-
-  return (
-    <div className="page">
-      <section className="hero card">
-        <div className="hero-main">
-          <div className="eyebrow">{s.programme || 'Programme'}</div>
-          <h1>{s.projectName}</h1>
-          <div className="hero-meta">
-            <span><strong>Client</strong> {s.client}</span>
-            <span><strong>Agency</strong> {s.agency}</span>
-            <span title={s.startDate ? 'Project Start Date (Settings)' : 'Earliest confirmed planned start across deliverables'}><strong>{s.startDate ? 'Start' : 'Earliest planned start'}</strong> <PlanDate v={p.projectStart} label="Not confirmed" /></span>
-            <span title={s.endDate ? 'Project End Date (Settings)' : 'Latest confirmed planned end across deliverables'}><strong>{s.endDate ? 'End' : 'Latest planned end'}</strong> <PlanDate v={p.projectEnd} label="Not confirmed" /></span>
-            <span><strong>Current phase</strong> {p.currentPhase}</span>
-          </div>
-          <div className="hero-meta">
-            <span><strong>Project manager</strong> {s.projectManager || <span className="unconfirmed">Not confirmed</span>}</span>
-            <span><strong>Data last synced</strong> {relTime(snap.sync.lastSuccessAt)}</span>
-            <span><strong>Reporting date</strong> {fmtDate(p.today, { weekday: true })}</span>
-          </div>
-          {((internal && !readOnly) || snap.sheetUrl) && (
-            <div className="row no-print" style={{ marginTop: 6 }}>
-              {snap.sheetUrl && (
-                <a className="btn btn-sun" href={snap.sheetUrl} target="_blank" rel="noreferrer noopener" title="Opens the live Google Sheet this dashboard reads">
-                  <Icon name="link" /> Open Google Sheet
-                </a>
-              )}
-              {internal && !readOnly && <button className="btn btn-primary" onClick={() => go('meetings', { new: '1' })}><Icon name="plus" /> Add Meeting Notes</button>}
-            </div>
-          )}
-        </div>
-        <div className="hero-health">
-          <div className="eyebrow">Overall health</div>
-          <HealthPill health={p.health} override={!!s.healthOverride} large />
-          <ul className="reasons">
-            {(s.healthOverride ? [s.healthOverrideReason || 'Set by the Project Manager (no reason recorded)', `Calculated: ${HEALTH_LABEL[p.computedHealth]}`] : p.healthReasons).map((r, i) => <li key={i}>{r}</li>)}
-          </ul>
-          <div className="hero-number" title="Completed deliverables ÷ all active deliverables. Only items with Completion Confirmed = Yes count as completed.">
-            <strong>{k.pct}%</strong>
-            <span className="muted">overall progress</span>
-          </div>
-          <Progress value={k.pct} label="Overall progress" color="var(--navy)" />
-          <small className="muted">{k.completed} of {k.total} deliverables confirmed complete</small>
-        </div>
-      </section>
-
-      <div className="kpis eight">
-        <Kpi label="Total deliverables" value={k.total} sub={k.notScheduled ? `${k.notScheduled} awaiting dates` : 'All scheduled'} onClick={() => filter('all')} />
-        <Kpi label="Completed" value={k.completed} tone={k.completed ? 'green' : undefined} sub={`${k.pct}% of total`} onClick={() => filter('complete')} />
-        <Kpi label="In progress" value={k.inProgress} tone="blue" onClick={() => filter('status:In Progress')} />
-        <Kpi label="In review" value={k.inReview} onClick={() => filter('status:In Review')} />
-        <Kpi label="Pending approvals" value={k.pendingApprovals} sub="Under Approval, Approval or awaiting decision" onClick={() => filter('approvals')} />
-        <Kpi label="Yet to start" value={k.yetToStart} sub={k.yetToAssign ? `+ ${k.yetToAssign} yet to assign` : k.unmapped ? `+ ${k.unmapped} with no status` : undefined} onClick={() => filter('status:Yet to Start')} />
-        <Kpi label="Overdue" value={k.overdue} tone={k.overdue ? 'red' : undefined} sub={k.notScheduled ? 'Based on confirmed dates only' : 'Past planned end, not complete'} onClick={() => filter('overdue')} />
-        <Kpi label="Due in next 7 days" value={k.dueSoon} tone={k.dueSoon ? 'amber' : undefined} onClick={() => filter('duesoon')} />
-      </div>
-
-      <div className="split">
-        <Card title="Phase-wise progress" subtitle="Confirmed completions ÷ deliverables in the phase (same rule as overall)" actions={<a className="btn btn-sm" href="#/tracker">Open tracker</a>}>
-          <BarList
-            max={100}
-            format={n => `${n}%`}
-            onClick={ph => go('tracker', { phase: ph })}
-            rows={p.phases.map(ph => ({ key: ph.phase, label: ph.name, value: ph.pct, title: `${ph.name}\n${ph.completed}/${ph.total} complete · ${ph.inProgress} in progress · ${ph.reviewApproval} in review/approval · ${ph.overdue} overdue · ${ph.atRisk} at risk` }))}
-          />
-          <div className="table-wrap" style={{ marginTop: 12 }}>
-          <table className="grid">
-            <thead><tr><th>Phase</th><th>Total</th><th>Done</th><th>Active</th><th>Review / approval</th><th>Overdue</th><th>At risk</th><th>Health</th></tr></thead>
-            <tbody>
-              {p.phases.map(ph => (
-                <tr key={ph.phase} className="clickable" onClick={() => go('tracker', { phase: ph.phase })}>
-                  <td>{ph.phase}</td><td>{ph.total}</td><td>{ph.completed}</td><td>{ph.inProgress}</td><td>{ph.reviewApproval}</td>
-                  <td className={ph.overdue ? 'bad' : ''}>{ph.overdue}</td><td className={ph.atRisk ? 'warn' : ''}>{ph.atRisk}</td><td><HealthPill health={ph.health} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
-        </Card>
-        <Card title="Status distribution" subtitle={`Open deliverables by status (${open.length})${k.completed ? ' · plus confirmed completions' : ''}`}>
-          <BarList rows={statusRows} onClick={st => st !== 'complete' && st !== '(none)' && filter(`status:${st}`)} />
-          <p className="chart-note">Bar length = number of deliverables. Click a bar to open those items in the tracker.</p>
-        </Card>
-      </div>
-
-      <div className="split">
-        <Card title="Upcoming milestones & approval gates" subtitle="Chronological; items without a confirmed date are listed last" actions={<a className="btn btn-sm" href="#/timeline">Timeline</a>}>
-          {upcoming.length ? (
-            <ul className="timeline-list">
-              {upcoming.map(m => (
-                <li key={m.key} className={m.overdue ? 'is-overdue' : m.atRisk ? 'is-risk' : ''}>
-                  <div className="tl-date">
-                    <PlanDate v={m.end} label="Not confirmed" />
-                    <small>{m.overdue ? `${m.overdueDays}d overdue` : m.daysRemaining !== null ? (m.daysRemaining === 0 ? 'today' : `in ${m.daysRemaining}d`) : ''}</small>
-                  </div>
-                  <div>
-                    <a href={`#/tracker?open=${encodeURIComponent(m.key)}`}>{plainName(m.name)}</a>
-                    <div className="small muted">{m.type} · {m.phase} <StatusBadge status={m.status} /></div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : <Empty title="No open milestones" icon="check" />}
-        </Card>
-        <Card title="Overdue & at-risk items" subtitle="Items needing immediate attention" actions={<a className="btn btn-sm" href="#/tracker?filter=attention">View all</a>}>
-          {attention.length === 0 ? (
-            <Empty title={k.notScheduled === k.total - k.completed ? 'No dates confirmed yet' : 'Nothing overdue or at risk'} icon="check">
-              {k.notScheduled ? `${k.notScheduled} open deliverables have no confirmed dates, so they cannot be assessed for slippage yet.` : 'All open deliverables are on track.'}
-            </Empty>
-          ) : (
-            <ul className="plain-list">
-              {attention.slice(0, 8).map(d => (
-                <li key={d.key}>
-                  <FlagBadge flag={d.flag} title={d.riskReasons.join('\n')} /> <a href={`#/tracker?open=${encodeURIComponent(d.key)}`}>{plainName(d.name)}</a>
-                  <div className="small muted">{d.overdue ? `${d.overdueDays} day(s) past ${fmtDate(d.end)}` : d.riskReasons[0]} · {d.owner || 'no owner'}</div>
-                </li>
-              ))}
-              {attention.length > 8 && <li className="muted small">+ {attention.length - 8} more</li>}
-            </ul>
-          )}
-        </Card>
-      </div>
-
-      <div className="split">
-        <PendingList
-          title={user.role === 'client' && !user.public ? 'Awaiting Sun Pharma (your inputs & approvals)' : 'Pending client inputs — awaiting Sun Pharma'}
-          subtitle="Lead = Sun, Client Input items, and approvals awaiting a decision"
-          items={awaitingSun.map(d => ({ key: d.key, id: d.id, name: plainName(d.name), tag: d.isClientInput ? 'Input' : d.pendingApproval || d.isApprovalGate ? 'Approval' : d.type || 'Task', who: d.sunOwner || d.leadFunction, due: d.end, overdue: d.overdue }))}
-          actions={sunActions}
-          link="#/tracker?filter=sun"
-        />
-        <PendingList
-          title="Pending internal actions — awaiting OneAlphaMed"
-          subtitle="Open deliverables led by OneAlphaMed, Joint teams or vendors"
-          items={awaitingOam.map(d => ({ key: d.key, id: d.id, name: plainName(d.name), tag: d.lead || '—', who: d.oamOwner, due: d.end, overdue: d.overdue }))}
-          actions={oamActions}
-          link="#/tracker?filter=oam"
-        />
-      </div>
-
-      <Narrative />
-      <RecentUpdates />
-    </div>
-  );
-}
-
-function PendingList({ title, subtitle, items, actions, link }: { title: string; subtitle: string; items: { key: string; id: string; name: string; tag: string; who: string; due: string | null; overdue: boolean }[]; actions: Rec[]; link: string }) {
-  return (
-    <Card title={`${title} (${items.length + actions.length})`} subtitle={subtitle} actions={<a className="btn btn-sm" href={link}>View all</a>}>
-      {items.length + actions.length === 0 ? (
-        <Empty title="Nothing pending" icon="check" />
-      ) : (
-        <ul className="plain-list">
-          {items.slice(0, 7).map(x => (
-            <li key={x.key}>
-              <Tag tone={x.tag === 'Input' ? 'purple' : x.tag === 'Approval' ? 'blue' : 'neutral'}>{x.tag}</Tag>
-              <a href={`#/tracker?open=${encodeURIComponent(x.key)}`}>{x.name}</a>
-              <div className="small muted">{x.who || 'owner not set'} · due <PlanDate v={x.due} label="date not confirmed" />{x.overdue && <span className="bad"> · overdue</span>}</div>
-            </li>
-          ))}
-          {items.length > 7 && <li className="muted small">+ {items.length - 7} more deliverables</li>}
-          {actions.slice(0, 4).map(a => (
-            <li key={a._key}>
-              <Tag tone="amber">Action</Tag> {String(a.action)}
-              <div className="small muted">{a._key} · {String(a.owner ?? 'owner not set')} · due {a.dueDate ? fmtDate(String(a.dueDate)) : 'not set'}</div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
-  );
-}
-
-/** Generated narrative + the PM's edited version (stored in Settings, used by reports). */
-function Narrative() {
-  const { project: p, user, toast } = useData();
-  const save = useSetting();
-  const generated = narrativeText(p.summary);
-  const edited = p.settings.narrative;
-  const [mode, setMode] = useState<'edited' | 'generated'>(edited ? 'edited' : 'generated');
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [busy, setBusy] = useState(false);
-  const isPm = user.role === 'admin';
-  useEffect(() => setMode(edited ? 'edited' : 'generated'), [edited]);
-  const persist = async (text: string) => {
-    setBusy(true);
-    try {
-      await save([['Executive Narrative', text], ['Executive Narrative Updated', text ? p.today : ''], ['Executive Narrative Updated By', text ? user.name : '']]);
-      setEditing(false);
-    } catch (e) {
-      toast((e as Error).message, 'error');
-    } finally {
-      setBusy(false);
-    }
+  // Status series in the validated chart order; confirmed completion first, unset last.
+  const names = [...CHART_ORDER.filter(n => p.statuses.get(n)), ...p.statuses.list.map(d => d.status).filter(n => !CHART_ORDER.includes(n))];
+  const keyOf = (d: Deliverable) => (d.complete ? '__complete' : p.statuses.get(d.status)?.status ?? '__none');
+  const countBy = (items: Deliverable[]) => {
+    const c: Counts = {};
+    for (const d of items) c[keyOf(d)] = (c[keyOf(d)] ?? 0) + 1;
+    return c;
   };
+  const all = countBy(ds);
+  const series: Series[] = [
+    { key: '__complete', label: 'Complete (confirmed)', color: COMPLETE_COLOR },
+    ...names.map(n => ({ key: n, label: n, color: p.statuses.color(n) })),
+    ...(all.__none ? [{ key: '__none', label: 'Status not set', color: CATEGORY_COLOR.Unmapped }] : []),
+  ];
+  const byStatus = (key: string) => filter(key === '__complete' ? 'complete' : `status:${key}`);
+
+  const open = ds.filter(d => !d.complete);
+  const withOam = open.filter(d => d.awaiting === 'OneAlphaMed');
+  const withSun = open.filter(d => d.awaiting === 'Sun Pharma');
+  const avgProgress = ds.length ? Math.round(ds.reduce((a, d) => a + progressOf(d), 0) / ds.length) : 0;
+  const notStarted = k.yetToStart + k.yetToAssign;
+  const noDates = k.notScheduled === open.length && open.length > 0;
+
+  const phaseRows = p.phases.map(ph => ({ key: ph.phase, label: ph.name, counts: countBy(ds.filter(d => d.phase === ph.phase)), done: ph.completed, total: ph.total }));
+  const owners = [...new Set(ds.map(d => d.oamOwner))].map(o => {
+    const items = ds.filter(d => d.oamOwner === o);
+    return { key: o, label: o || 'Not assigned', counts: countBy(items), done: items.filter(d => d.complete).length, total: items.length };
+  }).sort((a, b) => b.total - a.total);
+  const typeRows = TYPES.map(t => ({ key: t, label: t, done: ds.filter(d => d.type === t && d.complete).length, total: ds.filter(d => d.type === t).length })).filter(r => r.total);
+  const statusCols = series.map(x => x.label);
+
   return (
-    <Card
-      title="Executive narrative"
-      subtitle={<>Generated from live tracker data on {fmtDate(p.today, { weekday: true })}. Missing information is stated as unconfirmed, not assumed. Linked IDs open the source deliverables.</>}
-      actions={
-        <>
-          {edited && (
-            <div className="seg" role="group" aria-label="Narrative version">
-              <button className={mode === 'edited' ? 'active' : ''} onClick={() => setMode('edited')}>PM edited</button>
-              <button className={mode === 'generated' ? 'active' : ''} onClick={() => setMode('generated')}>Auto-generated</button>
+    <TooltipLayer>
+      <div className="page">
+        <section className="hero card">
+          <div className="hero-main">
+            <div className="eyebrow">{s.programme || 'Programme'}</div>
+            <h1>{s.projectName}</h1>
+            <div className="hero-meta">
+              <span><strong>Client</strong> {s.client}</span>
+              <span><strong>Agency</strong> {s.agency}</span>
+              <span title={s.startDate ? 'Project Start Date (Settings)' : 'Earliest confirmed planned start across deliverables'}><strong>{s.startDate ? 'Start' : 'Earliest planned start'}</strong> <PlanDate v={p.projectStart} label="Not confirmed" /></span>
+              <span title={s.endDate ? 'Project End Date (Settings)' : 'Latest confirmed planned end across deliverables'}><strong>{s.endDate ? 'End' : 'Latest planned end'}</strong> <PlanDate v={p.projectEnd} label="Not confirmed" /></span>
+              <span><strong>Current phase</strong> {p.currentPhase}</span>
             </div>
-          )}
-          {isPm && !editing && <button className="btn btn-sm" onClick={() => { setDraft(edited || generated); setEditing(true); }}><Icon name="notes" /> Edit narrative</button>}
-        </>
-      }
-    >
-      {editing ? (
-        <div className="narrative-editor">
-          <p className="small muted">Edit before sharing. The saved version is shown here and used in exported reports; the auto-generated version stays available.</p>
-          <textarea value={draft} onChange={e => setDraft(e.target.value)} aria-label="Executive narrative" />
-          <div className="form-actions">
-            <button className="btn" onClick={() => setEditing(false)} disabled={busy}>Cancel</button>
-            <button className="btn" onClick={() => setDraft(generated)} disabled={busy}>Reset to generated text</button>
-            {edited && <button className="btn btn-danger-ghost" onClick={() => void persist('')} disabled={busy}>Remove PM edit</button>}
-            <button className="btn btn-primary" onClick={() => void persist(draft)} disabled={busy || !draft.trim()}>{busy ? 'Saving…' : 'Save narrative'}</button>
+            <div className="hero-meta">
+              <span><strong>Project manager</strong> {s.projectManager || <span className="unconfirmed">Not confirmed</span>}</span>
+              <span><strong>Data last synced</strong> {relTime(snap.sync.lastSuccessAt)}</span>
+              <span><strong>Reporting date</strong> {fmtDate(p.today, { weekday: true })}</span>
+            </div>
+            {((internal && !readOnly) || snap.sheetUrl) && (
+              <div className="row no-print" style={{ marginTop: 6 }}>
+                {snap.sheetUrl && (
+                  <a className="btn btn-sun" href={snap.sheetUrl} target="_blank" rel="noreferrer noopener" title="Opens the live Google Sheet this dashboard reads">
+                    <Icon name="link" /> Open Google Sheet
+                  </a>
+                )}
+                {internal && !readOnly && <button className="btn btn-primary" onClick={() => go('meetings', { new: '1' })}><Icon name="plus" /> Add Meeting Notes</button>}
+              </div>
+            )}
           </div>
-        </div>
-      ) : mode === 'edited' && edited ? (
-        <>
-          <div className="notice notice-warn"><Icon name="notes" /> Edited by {p.settings.narrativeUpdatedBy || 'the Project Manager'}{p.settings.narrativeUpdated ? ` on ${fmtDate(p.settings.narrativeUpdated)}` : ''}. Figures may have changed since — compare with the auto-generated version.</div>
-          <div className="narrative">{edited}</div>
-        </>
-      ) : (
-        <div className="summary-grid">
-          {p.summary.map(sec => (
-            <div key={sec.key} className="summary-sec">
-              <h3>{sec.heading}</h3>
-              <ul>
-                {sec.items.map((it, i) => (
-                  <li key={i} className={it.tone ? `tone-${it.tone}` : ''}>
-                    {it.text}
-                    {it.refs && it.refs.length > 0 && (
-                      <span className="refs">
-                        {it.refs.slice(0, 6).map(r => {
-                          // Deliverables are cited by name (IDs are not shown in the dashboard).
-                          const d = p.byId.get(r);
-                          if (d) {
-                            const name = plainName(d.name);
-                            return <a key={r} className="tag tag-neutral" href={`#/tracker?open=${encodeURIComponent(r)}`} title={name}>{name.length > 32 ? `${name.slice(0, 31)}…` : name}</a>;
-                          }
-                          return r.startsWith('ACT') ? <a key={r} className="tag tag-neutral mono" href="#/meetings?tab=actions">{r}</a> : null;
-                        })}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+          <div className="hero-health">
+            <div className="eyebrow">Overall health</div>
+            <HealthPill health={p.health} override={!!s.healthOverride} large />
+            <ul className="reasons">
+              {(s.healthOverride ? [s.healthOverrideReason || 'Set by the Project Manager (no reason recorded)', `Calculated: ${HEALTH_LABEL[p.computedHealth]}`] : p.healthReasons).map((r, i) => <li key={i}>{r}</li>)}
+            </ul>
+            <div className="hero-number" title="Completed deliverables ÷ all active deliverables. Only items with Completion Confirmed = Yes count as completed.">
+              <strong>{k.pct}%</strong>
+              <span className="muted">overall progress</span>
             </div>
-          ))}
+            <Progress value={k.pct} label="Overall progress" color="var(--navy)" />
+            <small className="muted">{k.completed} of {k.total} deliverables confirmed complete</small>
+          </div>
+        </section>
+
+        <div className="ov-tiles">
+          <Tile icon="layers" tone="navy" label="Total deliverables" value={k.total} sub={`${p.phases.length} phases`} onClick={() => filter('all')} />
+          <Tile icon="refresh" tone="blue" label="Active" value={k.inProgress + k.inReview} sub="in progress / review" onClick={() => filter('status:In Progress')} />
+          <Tile icon="check" tone="green" label="Completed" value={k.completed} sub={`${k.pct}% done`} onClick={() => filter('complete')} />
+          <Tile icon="alert" tone={k.overdue ? 'red' : 'grey'} label="Overdue" value={k.overdue} sub={noDates ? 'no dates confirmed yet' : 'past planned end'} onClick={() => filter('overdue')} />
+          <Tile icon="calendar" tone="amber" label={`Due in ${s.dueSoonDays} days`} value={k.dueSoon} sub="due this week" onClick={() => filter('duesoon')} />
+          <Tile icon="shield" tone="violet" label="Pending approvals" value={k.pendingApprovals} sub="under approval / awaiting decision" onClick={() => filter('approvals')} />
+          <Tile icon="flag" tone="grey" label="Not started" value={notStarted} sub={`${pct(notStarted, k.total)}% of total`} onClick={() => filter('status:Yet to Start')} />
+          <Tile icon="overview" tone="green" label="Avg progress" value={`${avgProgress}%`} sub="indicative, by status" title={PROGRESS_HELP} onClick={() => go('tracker')} />
         </div>
-      )}
-    </Card>
+
+        <section className="card ww">
+          <header className="chart-head">
+            <h2>Where it's pending — and with whom</h2>
+            <span className="chart-sub">With Sun Pharma = client inputs, Sun-led items and approvals awaiting a decision</span>
+          </header>
+          <div className="ww-cards">
+            <WhoCard mark="OA" color={OAM_COLOR} title="With OneAlphaMed" sub="to be delivered" items={withOam} onClick={() => filter('oam')} />
+            <WhoCard mark="SP" color={SUN_COLOR} ink="#211f1f" title="With Sun Pharma" sub="client inputs & approvals" items={withSun} onClick={() => filter('sun')} />
+            <WhoCard mark="✓" color={COMPLETE_COLOR} title="Closed" sub="completion confirmed" items={ds.filter(d => d.complete)} closed onClick={() => filter('complete')} />
+          </div>
+          <StackBar
+            labels
+            label="Where deliverables sit"
+            series={[
+              { key: 'oam', label: 'With OneAlphaMed', color: OAM_COLOR },
+              { key: 'sun', label: 'With Sun Pharma', color: SUN_COLOR, ink: '#211f1f' },
+              { key: 'closed', label: 'Closed', color: COMPLETE_COLOR },
+            ]}
+            counts={{ oam: withOam.length, sun: withSun.length, closed: k.completed }}
+            onClick={key => filter(key === 'closed' ? 'complete' : key)}
+          />
+        </section>
+
+        <ChartKey series={series.filter(x => all[x.key])} />
+
+        <div className="exec-grid">
+          <ChartCard title="Deliverables by status" sub="Statuses in use · click a bar to open those items" table={{ head: ['Status', 'Deliverables', 'Share'], rows: series.map(x => [x.label, all[x.key] ?? 0, `${pct(all[x.key] ?? 0, k.total)}%`]) }}>
+            <HBars rows={series.map(x => ({ key: x.key, label: x.label, color: x.color, value: all[x.key] ?? 0 }))} onBar={byStatus} />
+          </ChartCard>
+
+          <ChartCard title="Progress by phase" sub="Bar length = deliverables, colour = status · right = confirmed complete" table={{ head: ['Phase', ...statusCols, 'Complete'], rows: phaseRows.map(r => [r.label, ...series.map(x => r.counts[x.key] ?? 0), `${pct(r.done, r.total)}%`]) }}>
+            <StackRows series={series} rows={phaseRows.map(r => ({ key: r.key, label: r.label, counts: r.counts, right: <><b>{pct(r.done, r.total)}%</b><small>{r.done}/{r.total}</small></> }))} onRow={ph => go('tracker', { phase: ph })} />
+          </ChartCard>
+
+          <ChartCard title="Workload by OneAlphaMed owner" sub="Deliverables per owner, by status" table={{ head: ['Owner', ...statusCols, 'Total'], rows: owners.map(r => [r.label, ...series.map(x => r.counts[x.key] ?? 0), r.total]) }}>
+            <StackRows series={series} rows={owners.map(r => ({ key: r.key, label: r.label, counts: r.counts, right: <><b>{r.total}</b><small>{r.done} done</small></> }))} onRow={o => o && go('tracker', { oam: o })} />
+          </ChartCard>
+
+          <ChartCard title="Completion by deliverable type" sub="Confirmed complete out of total" table={{ head: ['Type', 'Complete', 'Total'], rows: typeRows.map(r => [r.label, r.done, r.total]) }}>
+            <CompletionBars rows={typeRows} color={COMPLETE_COLOR} />
+          </ChartCard>
+        </div>
+
+        {p.milestones.length > 0 && (
+          <ChartCard title="Key milestones" sub="In date order; dates show once confirmed in the sheet" table={{ head: ['Milestone', 'Phase', 'Planned date', 'Status'], rows: p.milestones.map(m => [plainName(m.name), m.phase, m.end ? fmtDate(m.end) : 'Not confirmed', m.complete ? 'Complete' : m.status || 'Not set']) }}>
+            <ol className="ms-strip">
+              {p.milestones.map(m => (
+                <li key={m.key}>
+                  <button className="ms-btn" onClick={() => go('tracker', { open: m.key })} title={`${plainName(m.name)} — ${m.complete ? 'Complete' : m.status}`}>
+                    <i className={`ms-diamond${m.overdue ? ' late' : ''}`} style={{ background: m.complete ? COMPLETE_COLOR : p.statuses.color(m.status) }} aria-hidden />
+                    <span className="ms-name">{plainName(m.name)}</span>
+                    <span className={`ms-date${m.overdue ? ' bad' : ''}`}>{m.end ? fmtDate(m.end, { year: false }) : 'Date TBC'}</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </ChartCard>
+        )}
+      </div>
+    </TooltipLayer>
   );
 }
 
-function RecentUpdates() {
-  const { project: p, internal, snap } = useData();
-  const [audit, setAudit] = useState<Rec[] | null>(null);
-  useEffect(() => {
-    if (!internal) return;
-    api.audit().then(r => setAudit(r.entries.filter(e => e.source !== 'Import script').slice(0, 14))).catch(() => setAudit([]));
-  }, [internal, snap.version]);
+function Tile({ icon, tone, label, value, sub, title, onClick }: { icon: string; tone: string; label: string; value: ReactNode; sub: string; title?: string; onClick: () => void }) {
   return (
-    <Card title="Recent updates" subtitle={internal ? 'Field-level changes from the audit log (dashboard and direct sheet edits)' : 'Recently changed deliverables, comments and meeting records'}>
-      {internal && audit ? (
-        audit.length === 0 ? <Empty title="No changes since the checklist import" /> : (
-          <ul className="plain-list">
-            {audit.map((e, i) => (
-              <li key={i}>
-                <span className="mono">{String(e.recordId)}</span>{' '}
-                {e.field ? <>· <strong>{String(e.field)}</strong>: “{String(e.oldValue || '—')}” → “{String(e.newValue || '—')}”</> : <>· {String(e.action)} {e.newValue ? `— ${String(e.newValue)}` : ''}</>}
-                <div className="small muted">{String(e.user)} · {relTime(String(e.timestamp))}{e.source === 'Sheet' ? ' · edited in the sheet' : ''}</div>
-              </li>
-            ))}
-          </ul>
-        )
-      ) : p.recent.length === 0 ? (
-        <Empty title="No updates yet" />
-      ) : (
-        <ul className="plain-list">
-          {p.recent.slice(0, 12).map((r, i) => (
-            <li key={i}>
-              <Tag>{r.kind}</Tag> {r.link ? <a href={r.link}>{r.title}</a> : <span>{r.title}</span>}
-              <div className="small muted clamp">{r.id} · {r.detail} · {relTime(r.when)}</div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
+    <button className={`ov-tile tone-${tone}`} onClick={onClick} title={title}>
+      <span className="ov-icon"><Icon name={icon} size={18} /></span>
+      <span className="ov-label">{label}</span>
+      <span className="ov-value">{value}</span>
+      <span className="ov-sub">{sub}</span>
+    </button>
+  );
+}
+
+function WhoCard({ mark, color, ink = '#fff', title, sub, items, closed, onClick }: { mark: string; color: string; ink?: string; title: string; sub: string; items: Deliverable[]; closed?: boolean; onClick: () => void }) {
+  const { project: p } = useData();
+  const statuses = closed ? [] : [...new Set(items.map(d => d.status))];
+  const overdue = items.filter(d => d.overdue).length;
+  return (
+    <button className="ww-card" style={{ ['--c' as string]: color }} onClick={onClick}>
+      <span className="ww-top">
+        <span className="ww-mark" style={{ background: color, color: ink }}>{mark}</span>
+        <span className="ww-title"><strong>{title}</strong><small>{sub}</small></span>
+        <span className="ww-count">{items.length}</span>
+      </span>
+      <span className="ww-chips">
+        {closed ? (
+          <span className="ww-chip"><i className="swatch" style={{ background: COMPLETE_COLOR }} />Completion confirmed <b>{items.length}</b></span>
+        ) : statuses.length === 0 ? (
+          <span className="muted small">Nothing pending</span>
+        ) : (
+          statuses
+            .sort((a, b) => (p.statuses.get(a)?.order ?? 99) - (p.statuses.get(b)?.order ?? 99))
+            .map(st => <span key={st || 'none'} className="ww-chip"><i className="swatch" style={{ background: st ? p.statuses.color(st) : CATEGORY_COLOR.Unmapped }} />{st ? p.statuses.get(st)?.status ?? st : 'Status not set'}<b>{items.filter(d => d.status === st).length}</b></span>)
+        )}
+        {overdue > 0 && <span className="ww-chip ww-late"><Icon name="alert" size={12} /> {overdue} overdue</span>}
+      </span>
+    </button>
   );
 }

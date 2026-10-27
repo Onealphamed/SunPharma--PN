@@ -8,30 +8,15 @@ import { slipImpact, toGraphTasks } from '../../../shared/graph';
 import { norm } from '../../../shared/model';
 import { Deliverable, groupBy, isArchived, isOpenAction, plainName } from '../../../shared/project';
 import { canCreate, PRIORITIES } from '../../../shared/schema';
+import { COMPLETE_COLOR } from '../../../shared/status';
 import { api } from '../api';
 import { go } from '../App';
 import { useData } from '../data';
 import { History } from '../History';
+import { PROGRESS_HELP, progressOf } from '../progress';
 import { FormSection, RecordForm } from '../RecordForm';
 import { CompleteBadge, Confirm, D, Drawer, Empty, FlagBadge, Icon, Menu, PlanDate, SearchBox, StatusBadge, Tag } from '../ui';
 
-/**
- * Indicative progress per row, by status stage. Completion itself still counts only
- * "Completion Confirmed = Yes" (shown as 100%); the phase bar uses confirmed completion.
- */
-const STATUS_PROGRESS: [string, number][] = [
-  ['Yet to Start', 0],
-  ['Yet to Assign', 0],
-  ['Pending', 0],
-  ['In Progress', 50],
-  ['On Hold', 50],
-  ['In Review', 80],
-  ['Under Approval', 90],
-  ['Approval', 90],
-];
-const PROGRESS_BY = new Map(STATUS_PROGRESS.map(([s, v]) => [norm(s), v]));
-const progressOf = (d: Deliverable) => (d.complete ? 100 : PROGRESS_BY.get(norm(d.status)) ?? 0);
-const PROGRESS_HELP = `Indicative stage by status: ${STATUS_PROGRESS.map(([s, v]) => `${s} ${v}%`).join(' · ')} · Completion confirmed 100%`;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** Extra views reached from the Executive Summary (shown as a removable chip). */
@@ -72,12 +57,13 @@ export function Tracker({ params }: { params: URLSearchParams }) {
   const [expanded, setExpanded] = useState<Set<string> | null>(null);
   const [adding, setAdding] = useState(false);
 
-  // Links from the Executive Summary: ?filter=status:X | overdue | complete | duesoon | approvals …, ?phase=, ?open=
+  // Links from the Executive Summary: ?filter=status:X | overdue | complete | duesoon | approvals …, ?phase=, ?oam=, ?open=
   useEffect(() => {
     const f = params.get('filter') ?? '';
     setStatus(f.startsWith('status:') ? f.slice(7) : f === 'overdue' ? '__overdue' : f === 'complete' ? '__complete' : '');
     setView(VIEWS[f] ? f : '');
     setPhase(params.get('phase') ?? '');
+    setOam(params.get('oam') ?? '');
     setOpen(params.get('open'));
   }, [params]);
 
@@ -241,7 +227,7 @@ export function Tracker({ params }: { params: URLSearchParams }) {
                                 <td className="nowrap">{d.end ? fmtDate(d.end, { year: false }) : <span className="muted">—</span>}</td>
                                 <td>
                                   <span className="tprog" title={PROGRESS_HELP}>
-                                    <span className="tprog-bar"><i style={{ width: `${prog}%`, background: d.complete ? 'var(--green)' : p.statuses.color(d.status) }} /></span>
+                                    <span className="tprog-bar"><i style={{ width: `${prog}%`, background: d.complete ? COMPLETE_COLOR : p.statuses.color(d.status) }} /></span>
                                     <span className="tprog-pct">{prog}%</span>
                                   </span>
                                 </td>
