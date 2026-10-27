@@ -6,6 +6,7 @@ Client-facing project dashboard for the **Sun Pharma PN0510 Advisory Board progr
 > - It reads the Google Sheet `11utniknUlqKEEwh-8_fS2qkM9ttoKbHqUb86dOZLrA0` through its **"Anyone with the link can view"** sharing (view-only link mode, §3A). No credentials are needed.
 > - Edits are made in Google Sheets and appear within the sync interval (15 s by default).
 > - Visitors need no sign-in (open access, §4).
+> - Four pages: Executive Summary, Deliverables Tracker, Timeline / Gantt and Meetings & Minutes (plus Settings for the team). Colours are ~70% OneAlphaMed (deep blue / teal, logo gradient) and ~30% Sun Pharma (orange accents); the tokens are at the top of `client/src/styles.css`.
 
 ## Contents
 1. What it does
@@ -24,14 +25,10 @@ Client-facing project dashboard for the **Sun Pharma PN0510 Advisory Board progr
 
 | Section | Highlights |
 |---|---|
-| **Executive Summary** | Health; eight KPI cards (total, completed, in progress, in review, pending approvals, yet to start, overdue, due in 7 days); overall and phase progress; status distribution; upcoming milestones; overdue and at-risk items; work awaiting Sun Pharma vs OneAlphaMed; a narrative generated from the data that the PM can edit; recent updates; **Add Meeting Notes** button. |
-| **Deliverables Tracker** | All 114 checklist deliverables grouped Phase › Workstream. Search; filters (phase, workstream, status, both owners, lead function, priority, schedule flag, date range); quick filters (overdue, pending client inputs, pending approvals, …); sorting; column chooser; inline editing of status, priority and dates; bulk status/priority/completion updates; add deliverable; detail drawer with comments, linked actions, dependencies, slip impact and change history; Excel/CSV export of filtered or complete data. |
-| **Project Phases** | One view per phase: scope from the checklist heading, workstreams, counts, completion %, dates, milestones, dependencies on earlier phases, decisions required, outstanding client inputs, next steps and the phase's deliverable table. |
+| **Executive Summary** | Health; eight KPI cards (total, completed, in progress, in review, pending approvals, yet to start, overdue, due in 7 days); overall and phase progress; status distribution; upcoming milestones; overdue and at-risk items; work awaiting Sun Pharma vs OneAlphaMed; a narrative generated from the data that the PM can edit; recent updates; **Open Google Sheet** button (opens the source sheet in a new tab); **Add Meeting Notes** button for the team. |
+| **Deliverables Tracker** | Laid out like the EAN project tracker. One filter bar: search, Phase, Owner (OAM), Owner (Client), Priority, Status (incl. Completed and Overdue), Month, Year, Clear. Then a collapsible section per phase showing *N items · X done* and a confirmed-completion bar, with workstream sub-headers and columns SR, Deliverable (name + description), Status, Owner (OAM), Owner (Client), Start, End, Progress, Delay / Left, Priority. No ID column. *Progress* is an indicative stage by status (Yet to Start / Yet to Assign / Pending 0%, In Progress / On Hold 50%, In Review 80%, Under Approval / Approval 90%); only Completion Confirmed = Yes counts as 100% and as done. Click a row for the detail drawer (comments, linked actions, dependencies, slip impact, change history). Excel/CSV export of filtered or complete data. |
 | **Timeline / Gantt** | Daily, weekly and monthly views; phase and workstream summary bars; phase-start lines; milestones; approval gates; client inputs; dependencies; critical path once dependencies exist; today line; holidays; baseline vs plan. Items without confirmed dates are listed separately as *Awaiting schedule confirmation*, never drawn from guessed dates. |
-| **Risks & Dependencies** | Risk / issue / dependency / assumption log; decision log; recorded dependencies; **12 dependency suggestions read from the checklist's own Remarks**, which the PM applies with one click or ignores; gating remarks; client-input dependencies. |
-| **Approvals & Client Inputs** | Approvals with owner, client approver, submission date, review turnaround (marked *proposed* until confirmed), due date, decision, feedback, follow-ups, days awaiting and downstream items blocked. Client Input items listed separately. **Nothing is ever emailed or sent.** |
-| **Meetings & Minutes** | Meeting register (newest first) with search and filters by date, attendee, phase and topic. Full minutes form with auto-assigned `MTG-###` IDs. Each decision line converts to an action item or a decision-log entry. Action tracker shows linked deliverables and overdue highlighting. Client-ready minutes as PDF (print) or Word. Change history. |
-| **Reports & Exports** | The eight requested reports, previewed on screen, printed to PDF or downloaded as Word. Each includes the project name, reporting date, status legend, summary metrics and last-sync time. Spreadsheet exports carry an *About* sheet with the sync time. |
+| **Meetings & Minutes** | Meeting register (newest first) with search and filters by date, attendee, phase and topic. Full minutes form with auto-assigned `MTG-###` IDs. Each decision line converts to an action item. Action tracker shows linked deliverables and overdue highlighting. Client-ready minutes as PDF (print) or Word. Change history. |
 | **Settings / Data Connection** (internal only) | Connection state (Connected / Syncing / Connection Error) with retry; set-up steps; log of failed saves and sync errors; data-quality report; project settings and thresholds; status configuration; working-day calendar; audit log; a what-if "simulate today" date. |
 
 ## 2. Quick start (local, no Google credentials needed)
@@ -88,7 +85,7 @@ There are two ways to connect:
 - **Optional extra columns:** add columns to the checklist with the tracker names and they are picked up automatically, e.g. *Planned Start Date*, *Planned End Date*, *Actual Completion Date*, *Completion Confirmed*, *Priority*, *Dependency*, *Next Action*, *Action Owner*, *Target Date*, *Client Approval Status*.
   - Add a **Deliverable ID** column to keep IDs fixed when rows are inserted. Without it, IDs are numbered by position within each section.
 - **More tracker data:** tabs named like the tracker tabs (*Meetings*, *Action Items*, *Risks & Issues*, *Decision Log*, *Settings*, …) with the same headers are read too.
-- **Live sheet page:** shows every tab exactly as it stands. Visitors see contact-detail columns (phone, email, dietary needs, address) masked, and only signed-in team members get the "Open in Google Sheets" link.
+- **Sheet link:** the Executive Summary's **Open Google Sheet** button opens the source sheet. Everyone with the dashboard link sees it, so they can also read every tab of the sheet, including contact details in the KOL tabs.
 - **Limits:**
   - Dashboard editing (status changes, meeting notes, comments) is switched off in this mode.
   - Turning off link sharing breaks the connection; the dashboard then shows a clear Connection Error.
@@ -266,7 +263,7 @@ server/src/     Express API
   auth.ts, app.ts, config.ts, index.ts, vercel.ts
 server/scripts/ import-checklist, push-to-sheet, add-user
 client/src/     React 18 + Vite (no UI framework; plain CSS)
-  pages/          Summary, Tracker, Phases, Gantt, Risks, Approvals, Meetings, Reports, Settings
+  pages/          Summary, Tracker, Gantt, Meetings, Settings
   reports.ts      The eight report documents (HTML → PDF/Word)
 docs/IMPORT_REPORT.md   What was imported, mapped and flagged
 ```

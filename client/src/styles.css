@@ -1,11 +1,22 @@
-/* PN0510 Advisory Board dashboard — restrained enterprise styling (navy primary) */
+/* PN0510 Advisory Board dashboard — brand colours: ~70% OneAlphaMed, ~30% Sun Pharma.
+   OneAlphaMed logo: grey wordmark #616161, mark gradient #83c555 → #46b371 → #3e908d → #3b719b.
+   Sun Pharma logo: orange #f5911f, peach #fad0ae, near-black #211f1f.
+   OneAlphaMed carries the structure (sidebar, headers, buttons, links); Sun Pharma the accents
+   (active states, highlights). Status colours stay on the validated palette.
+   Orange surfaces take dark text (white on orange is 2.3:1, below WCAG AA). */
 :root {
-  --navy: #14285a;
-  --navy-2: #1f3a7a;
-  --blue: #1d4ed8;
-  --blue-soft: #e8eefc;
-  --ink: #1b2333;
-  --ink-2: #4a5568;
+  --navy: #1d4a63;      /* OneAlphaMed deep blue (from #3b719b) — sidebar, headings */
+  --navy-2: #245a77;
+  --blue: #2c7672;      /* OneAlphaMed teal (from #3e908d) — links, primary actions */
+  --blue-soft: #e4f2f0;
+  --oam-green: #46b371;
+  --oam-grey: #616161;
+  --brand-gradient: linear-gradient(90deg, #83c555 0%, #46b371 22%, #3e908d 46%, #3b719b 70%, #f5911f 70%, #f5911f 100%);
+  --sun: #f5911f;       /* Sun Pharma orange — accents only */
+  --sun-soft: #fdeedd;  /* from Sun Pharma peach #fad0ae */
+  --sun-ink: #9a5208;   /* readable orange-brown text on light backgrounds */
+  --ink: #1f2427;
+  --ink-2: #4b5357;
   --muted: #6b7486;
   --line: #e3e7ee;
   --line-2: #eef1f5;
@@ -514,21 +525,70 @@ details > summary { cursor: pointer; padding: 6px 0; }
   .kpis.eight { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* Live sheet */
-.sheet-intro h1 { font-size: 30px; margin: 4px 0 6px; }
-.sheet-intro p { max-width: 760px; margin: 0; line-height: 1.55; }
-.sheet-stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
-.sheet-stats > div { padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; border-left: 1px solid var(--line); min-width: 0; }
-.sheet-stats > div:first-child { border-left: 0; }
-.sheet-stats strong { font-size: 22px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sheet-stats strong.mono { font-size: 20px; }
-.sheet-stats span { font-size: 12px; color: var(--muted); }
-.sheet-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
-.sheet-tab { font-family: Consolas, 'SF Mono', Menlo, monospace; font-size: 12px; border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 5px 10px; cursor: pointer; color: var(--ink-2); }
-.sheet-tab.active { background: var(--navy); border-color: var(--navy); color: #fff; }
-.sheet-grid table.grid { font-family: Consolas, 'SF Mono', Menlo, monospace; font-size: 12px; }
-.sheet-grid th { text-align: center; }
-.sheet-grid td { white-space: pre-wrap; min-width: 90px; max-width: 420px; border-right: 1px solid var(--line-2); }
-.sheet-grid .rownum { width: 44px; min-width: 44px; text-align: right; color: var(--muted); background: #f8f9fc; position: sticky; left: 0; z-index: 1; }
-@media (max-width: 1080px) { .sheet-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } .sheet-stats > div:nth-child(4) { border-left: 0; } .sheet-stats > div:nth-child(n+4) { border-top: 1px solid var(--line); } }
-@media (max-width: 560px) { .sheet-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sheet-stats > div { border-left: 0; border-top: 1px solid var(--line); } .sheet-stats > div:first-child, .sheet-stats > div:nth-child(2) { border-top: 0; } }
+/* ---- Brand layer: OneAlphaMed structure + Sun Pharma accents ---- */
+.btn-primary { background: var(--blue); border-color: var(--blue); }
+.btn-primary:hover { background: #235f5b; }
+.btn-sun { background: var(--sun); border-color: var(--sun); color: #211f1f; font-weight: 600; }
+.btn-sun:hover { background: #e7830f; border-color: #e7830f; text-decoration: none; }
+.chip.active { background: var(--navy); border-color: var(--navy); }
+.seg button.active { background: var(--blue-soft); color: var(--navy); box-shadow: inset 0 -2px 0 var(--sun); }
+.sidebar { background: var(--navy); }
+.sidebar nav a.active { background: rgba(255, 255, 255, 0.1); box-shadow: inset 3px 0 0 var(--sun); }
+.brand-mark { background: var(--sun); color: #211f1f; }
+.login-card .brand-mark { background: var(--sun); color: #211f1f; }
+.main-col { position: relative; }
+.topbar { border-bottom: 0; box-shadow: 0 1px 0 var(--line); }
+.topbar::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--brand-gradient); }
+.login { background: var(--navy); }
+.login-card { position: relative; overflow: hidden; }
+.login-card::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--brand-gradient); }
+.banner-info { background: var(--sun-soft); color: #211f1f; border-bottom: 1px solid #f6d8b6; }
+.banner-info a { color: var(--sun-ink); font-weight: 600; }
+.card-head h2, .section-head h2, .record-form legend { color: var(--navy); }
+.hero { position: relative; overflow: hidden; }
+.hero::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--brand-gradient); }
+.progress > div { background: var(--blue); }
+.sync-live .dot { background: var(--oam-green); box-shadow: 0 0 0 3px rgba(70, 179, 113, 0.2); }
+.toast { background: var(--navy); }
+
+/* ---- Deliverable tracker (reference layout) ---- */
+.tracker { gap: 12px; }
+.tracker-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; padding: 12px 14px; }
+.tracker-filters .search { flex: 1 1 240px; min-width: 200px; align-self: flex-end; height: 34px; }
+.tf { display: flex; flex-direction: column; gap: 3px; }
+.tf span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.tf select { min-width: 110px; max-width: 220px; height: 34px; }
+.tracker-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 12px; padding: 2px 2px 0; }
+.tracker-title h2 { font-size: 16px; color: var(--navy); }
+.tracker-title .menu, .tracker-title .btn { align-self: center; }
+.tag-x { background: none; border: 0; padding: 0 0 0 4px; cursor: pointer; color: inherit; font-size: 13px; line-height: 1; }
+.tphase { padding: 0; overflow: hidden; }
+.tphase-head { width: 100%; display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #fff; border: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; border-left: 4px solid var(--blue); }
+.tphase-head:hover { background: #f7fafa; }
+.tphase-head strong { font-size: 14px; color: var(--navy); }
+.tphase-bar { width: 160px; height: 7px; border-radius: 4px; background: var(--line-2); overflow: hidden; display: inline-block; }
+.tphase-bar i { display: block; height: 100%; border-radius: 4px; background: var(--sun); }
+.tphase-pct { width: 40px; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+.tphase-table { border: 0; border-top: 1px solid var(--line); border-radius: 0; max-height: none; }
+.ttable th { text-transform: uppercase; letter-spacing: 0.05em; font-size: 11px; color: var(--muted); background: #f7f9fa; }
+.ttable td { vertical-align: middle; padding: 9px 10px; }
+.ttable .c-sr { width: 44px; text-align: center; }
+.ttable .c-name { min-width: 280px; max-width: 460px; }
+.ttable .c-name strong { display: block; font-weight: 600; color: var(--ink); }
+.c-desc { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 440px; margin-top: 2px; }
+.tws-row td { background: #f3f7f7 !important; font-size: 12px; font-weight: 600; color: var(--navy); padding: 5px 12px !important; }
+.tprog { display: inline-flex; align-items: center; gap: 8px; }
+.tprog-bar { width: 72px; height: 6px; border-radius: 3px; background: var(--line-2); overflow: hidden; display: inline-block; }
+.tprog-bar i { display: block; height: 100%; border-radius: 3px; }
+.tprog-pct { font-size: 12px; color: var(--ink-2); width: 32px; text-align: right; font-variant-numeric: tabular-nums; }
+.ppill { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--line); color: var(--ink-2); background: #fff; }
+.ppill-critical, .ppill-high { color: #8a1c1c; background: var(--red-soft); border-color: #f4c7c7; }
+.ppill-medium { color: var(--sun-ink); background: var(--sun-soft); border-color: #f6d8b6; }
+.ppill-low { color: var(--blue); background: var(--blue-soft); border-color: #c4e2de; }
+@media (max-width: 860px) {
+  .tphase-bar { width: 80px; }
+  .tf select { min-width: 0; }
+}
+@media print {
+  .topbar::before, .hero::before { display: none; }
+}

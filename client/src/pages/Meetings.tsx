@@ -136,7 +136,6 @@ export function Meetings({ params }: { params: URLSearchParams }) {
                 onEdit={canEdit ? () => setMode('edit') : undefined}
                 onMinutes={() => setMode('minutes')}
                 onAction={canCreate(user.role, 'actions') ? text => setDrawer({ kind: 'action', defaults: { meetingId: m._key, action: text, status: 'Open', visibility: s(m.visibility) || 'Internal' } }) : undefined}
-                onDecision={canCreate(user.role, 'decisions') ? text => setDrawer({ kind: 'decision', defaults: { decision: text, finalDecision: text, status: 'Decided', dateRecorded: s(m.date), meetingId: m._key, phase: PHASE_NUMBERS.includes(s(m.phase)) ? s(m.phase) : undefined, visibility: s(m.visibility) || 'Internal' } }) : undefined}
               />
             )}
           </section>

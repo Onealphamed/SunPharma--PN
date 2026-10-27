@@ -83,19 +83,13 @@ describe('Google Sheet through its view-only link', () => {
     await admin.post('/api/tables/meetings').set(H).send({ values: { title: 'x', date: '2026-11-02' } }).expect(409);
   });
 
-  it('shows every tab on the Live sheet view, masking contact details for visitors', async () => {
-    const { app, admin } = await setup();
-    const pub = (await request(app).get('/api/workbook').expect(200)).body;
-    expect(pub.tabs.map((t: any) => t.name)).toEqual(['Readiness Checklist', 'KOL Tracker']);
-    const kol = pub.tabs.find((t: any) => t.name === 'KOL Tracker');
-    expect(kol.rows[1].cells).toEqual(['Dr. Example', 'Delhi', '•••', '•••']);
-    expect(pub.masked).toEqual([{ tab: 'KOL Tracker', columns: ['Phone', 'Email'] }]);
-    expect(pub.sheetUrl).toBeNull();
-    expect(JSON.stringify(pub)).not.toContain('9876543210');
-    const team = (await admin.get('/api/workbook').expect(200)).body;
-    expect(team.tabs.find((t: any) => t.name === 'KOL Tracker').rows[1].cells).toContain('9876543210');
-    expect(team.sheetUrl).toBe('https://docs.google.com/spreadsheets/d/TEST_SHEET-id_1/edit');
-    expect(team.version).toMatch(/^[0-9a-f]{10}$/);
+  it('gives everyone the link to the sheet it reads, and sends no other tab', async () => {
+    const { app } = await setup();
+    const snap = (await request(app).get('/api/snapshot').expect(200)).body;
+    expect(snap.sheetUrl).toBe('https://docs.google.com/spreadsheets/d/TEST_SHEET-id_1/edit');
+    // Only dashboard tables are sent; the raw KOL Tracker (contact details) never is.
+    expect(JSON.stringify(snap)).not.toContain('9876543210');
+    await request(app).get('/api/workbook').expect(404);
   });
 
   it('reports a clear error when the sheet is no longer shared by link, keeping the last good data', async () => {

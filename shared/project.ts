@@ -774,8 +774,8 @@ function buildRecent(p: Project): RecentItem[] {
     if (!a.lastUpdated) continue;
     out.push({ kind: 'action', id: a._key, title: s(a.action), detail: `Action · ${s(a.status)}`, when: s(a.lastUpdated), link: '#/meetings?tab=actions' });
   }
-  for (const r of (p.tables.raid ?? []).filter(x => !isArchived(x) && x.lastUpdated)) out.push({ kind: 'risk', id: r._key, title: s(r.title), detail: `${s(r.category)} · ${s(r.status)}`, when: s(r.lastUpdated), link: '#/risks' });
-  for (const r of (p.tables.decisions ?? []).filter(x => !isArchived(x) && x.lastUpdated)) out.push({ kind: 'decision', id: r._key, title: s(r.decision), detail: `Decision · ${s(r.status)}`, when: s(r.lastUpdated), link: '#/risks?tab=decisions' });
+  for (const r of (p.tables.raid ?? []).filter(x => !isArchived(x) && x.lastUpdated)) out.push({ kind: 'risk', id: r._key, title: s(r.title), detail: `${s(r.category)} · ${s(r.status)}`, when: s(r.lastUpdated), link: '' });
+  for (const r of (p.tables.decisions ?? []).filter(x => !isArchived(x) && x.lastUpdated)) out.push({ kind: 'decision', id: r._key, title: s(r.decision), detail: `Decision · ${s(r.status)}`, when: s(r.lastUpdated), link: '' });
   return out.sort((a, b) => b.when.localeCompare(a.when)).slice(0, 25);
 }
 

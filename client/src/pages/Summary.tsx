@@ -48,15 +48,14 @@ export function Summary() {
             <span><strong>Data last synced</strong> {relTime(snap.sync.lastSuccessAt)}</span>
             <span><strong>Reporting date</strong> {fmtDate(p.today, { weekday: true })}</span>
           </div>
-          {internal && !readOnly && (
+          {((internal && !readOnly) || snap.sheetUrl) && (
             <div className="row no-print" style={{ marginTop: 6 }}>
-              <button className="btn btn-primary" onClick={() => go('meetings', { new: '1' })}><Icon name="plus" /> Add Meeting Notes</button>
-              <button className="btn" onClick={() => go('reports', { report: 'executive' })}><Icon name="file" /> Executive report</button>
-            </div>
-          )}
-          {(!internal || readOnly) && (
-            <div className="row no-print" style={{ marginTop: 6 }}>
-              <button className="btn" onClick={() => go('reports', { report: 'executive' })}><Icon name="file" /> Download executive report</button>
+              {snap.sheetUrl && (
+                <a className="btn btn-sun" href={snap.sheetUrl} target="_blank" rel="noreferrer noopener" title="Opens the live Google Sheet this dashboard reads">
+                  <Icon name="link" /> Open Google Sheet
+                </a>
+              )}
+              {internal && !readOnly && <button className="btn btn-primary" onClick={() => go('meetings', { new: '1' })}><Icon name="plus" /> Add Meeting Notes</button>}
             </div>
           )}
         </div>
@@ -87,11 +86,11 @@ export function Summary() {
       </div>
 
       <div className="split">
-        <Card title="Phase-wise progress" subtitle="Confirmed completions ÷ deliverables in the phase (same rule as overall)" actions={<a className="btn btn-sm" href="#/phases">Phase details</a>}>
+        <Card title="Phase-wise progress" subtitle="Confirmed completions ÷ deliverables in the phase (same rule as overall)" actions={<a className="btn btn-sm" href="#/tracker">Open tracker</a>}>
           <BarList
             max={100}
             format={n => `${n}%`}
-            onClick={ph => go('phases', { phase: ph })}
+            onClick={ph => go('tracker', { phase: ph })}
             rows={p.phases.map(ph => ({ key: ph.phase, label: ph.name, value: ph.pct, title: `${ph.name}\n${ph.completed}/${ph.total} complete · ${ph.inProgress} in progress · ${ph.reviewApproval} in review/approval · ${ph.overdue} overdue · ${ph.atRisk} at risk` }))}
           />
           <div className="table-wrap" style={{ marginTop: 12 }}>
@@ -99,7 +98,7 @@ export function Summary() {
             <thead><tr><th>Phase</th><th>Total</th><th>Done</th><th>Active</th><th>Review / approval</th><th>Overdue</th><th>At risk</th><th>Health</th></tr></thead>
             <tbody>
               {p.phases.map(ph => (
-                <tr key={ph.phase} className="clickable" onClick={() => go('phases', { phase: ph.phase })}>
+                <tr key={ph.phase} className="clickable" onClick={() => go('tracker', { phase: ph.phase })}>
                   <td>{ph.phase}</td><td>{ph.total}</td><td>{ph.completed}</td><td>{ph.inProgress}</td><td>{ph.reviewApproval}</td>
                   <td className={ph.overdue ? 'bad' : ''}>{ph.overdue}</td><td className={ph.atRisk ? 'warn' : ''}>{ph.atRisk}</td><td><HealthPill health={ph.health} /></td>
                 </tr>
@@ -126,7 +125,7 @@ export function Summary() {
                   </div>
                   <div>
                     <a href={`#/tracker?open=${encodeURIComponent(m.key)}`}>{plainName(m.name)}</a>
-                    <div className="small muted">{m.id} · {m.type} · {m.phase} <StatusBadge status={m.status} /></div>
+                    <div className="small muted">{m.type} · {m.phase} <StatusBadge status={m.status} /></div>
                   </div>
                 </li>
               ))}
@@ -143,7 +142,7 @@ export function Summary() {
               {attention.slice(0, 8).map(d => (
                 <li key={d.key}>
                   <FlagBadge flag={d.flag} title={d.riskReasons.join('\n')} /> <a href={`#/tracker?open=${encodeURIComponent(d.key)}`}>{plainName(d.name)}</a>
-                  <div className="small muted">{d.id} · {d.overdue ? `${d.overdueDays} day(s) past ${fmtDate(d.end)}` : d.riskReasons[0]} · {d.owner || 'no owner'}</div>
+                  <div className="small muted">{d.overdue ? `${d.overdueDays} day(s) past ${fmtDate(d.end)}` : d.riskReasons[0]} · {d.owner || 'no owner'}</div>
                 </li>
               ))}
               {attention.length > 8 && <li className="muted small">+ {attention.length - 8} more</li>}
@@ -158,7 +157,7 @@ export function Summary() {
           subtitle="Lead = Sun, Client Input items, and approvals awaiting a decision"
           items={awaitingSun.map(d => ({ key: d.key, id: d.id, name: plainName(d.name), tag: d.isClientInput ? 'Input' : d.pendingApproval || d.isApprovalGate ? 'Approval' : d.type || 'Task', who: d.sunOwner || d.leadFunction, due: d.end, overdue: d.overdue }))}
           actions={sunActions}
-          link="#/approvals"
+          link="#/tracker?filter=sun"
         />
         <PendingList
           title="Pending internal actions — awaiting OneAlphaMed"
@@ -186,7 +185,7 @@ function PendingList({ title, subtitle, items, actions, link }: { title: string;
             <li key={x.key}>
               <Tag tone={x.tag === 'Input' ? 'purple' : x.tag === 'Approval' ? 'blue' : 'neutral'}>{x.tag}</Tag>
               <a href={`#/tracker?open=${encodeURIComponent(x.key)}`}>{x.name}</a>
-              <div className="small muted">{x.id} · {x.who || 'owner not set'} · due <PlanDate v={x.due} label="date not confirmed" />{x.overdue && <span className="bad"> · overdue</span>}</div>
+              <div className="small muted">{x.who || 'owner not set'} · due <PlanDate v={x.due} label="date not confirmed" />{x.overdue && <span className="bad"> · overdue</span>}</div>
             </li>
           ))}
           {items.length > 7 && <li className="muted small">+ {items.length - 7} more deliverables</li>}
@@ -268,9 +267,15 @@ function Narrative() {
                     {it.text}
                     {it.refs && it.refs.length > 0 && (
                       <span className="refs">
-                        {it.refs.slice(0, 6).map(r => (
-                          <a key={r} className="tag tag-neutral mono" href={r.startsWith('PN-') ? `#/tracker?open=${encodeURIComponent(r)}` : r.startsWith('ACT') ? '#/meetings?tab=actions' : '#/risks'}>{r}</a>
-                        ))}
+                        {it.refs.slice(0, 6).map(r => {
+                          // Deliverables are cited by name (IDs are not shown in the dashboard).
+                          const d = p.byId.get(r);
+                          if (d) {
+                            const name = plainName(d.name);
+                            return <a key={r} className="tag tag-neutral" href={`#/tracker?open=${encodeURIComponent(r)}`} title={name}>{name.length > 32 ? `${name.slice(0, 31)}…` : name}</a>;
+                          }
+                          return r.startsWith('ACT') ? <a key={r} className="tag tag-neutral mono" href="#/meetings?tab=actions">{r}</a> : null;
+                        })}
                       </span>
                     )}
                   </li>
@@ -311,7 +316,7 @@ function RecentUpdates() {
         <ul className="plain-list">
           {p.recent.slice(0, 12).map((r, i) => (
             <li key={i}>
-              <Tag>{r.kind}</Tag> <a href={r.link}>{r.title}</a>
+              <Tag>{r.kind}</Tag> {r.link ? <a href={r.link}>{r.title}</a> : <span>{r.title}</span>}
               <div className="small muted clamp">{r.id} · {r.detail} · {relTime(r.when)}</div>
             </li>
           ))}

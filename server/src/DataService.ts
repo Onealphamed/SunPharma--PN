@@ -244,11 +244,6 @@ export class DataService extends EventEmitter {
     return rows.slice(-limit).reverse();
   }
 
-  /** Every tab of the source as last read (view-only link and local sources). */
-  workbook() {
-    return this.store.workbook?.() ?? null;
-  }
-
   // ---------------------------------------------------------------- writes
 
   private assertWritable() {

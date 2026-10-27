@@ -4,31 +4,21 @@ import { ROLE_LABEL } from '../../shared/schema';
 import { api, Snapshot } from './api';
 import { DataProvider, useData } from './data';
 import { Login } from './Login';
-import { Approvals } from './pages/Approvals';
 import { Gantt } from './pages/Gantt';
-import { LiveSheet } from './pages/LiveSheet';
 import { Meetings } from './pages/Meetings';
-import { Phases } from './pages/Phases';
-import { Reports } from './pages/Reports';
-import { Risks } from './pages/Risks';
 import { SettingsPage } from './pages/Settings';
 import { Summary } from './pages/Summary';
 import { Tracker } from './pages/Tracker';
 import { Icon, relTime, useTick } from './ui';
 
-export type Page = 'summary' | 'sheet' | 'tracker' | 'phases' | 'timeline' | 'risks' | 'approvals' | 'meetings' | 'reports' | 'settings';
+export type Page = 'summary' | 'tracker' | 'timeline' | 'meetings' | 'settings';
 
-/** internalOnly: team only. sheetLink: also shown to everyone when the source is the view-only sheet link. */
-const NAV: { page: Page; label: string; icon: string; internalOnly?: boolean; sheetLink?: boolean }[] = [
+/** internalOnly: team only. */
+const NAV: { page: Page; label: string; icon: string; internalOnly?: boolean }[] = [
   { page: 'summary', label: 'Executive Summary', icon: 'overview' },
-  { page: 'sheet', label: 'Live sheet', icon: 'grid', internalOnly: true, sheetLink: true },
   { page: 'tracker', label: 'Deliverables Tracker', icon: 'list' },
-  { page: 'phases', label: 'Project Phases', icon: 'layers' },
   { page: 'timeline', label: 'Timeline / Gantt', icon: 'gantt' },
-  { page: 'risks', label: 'Risks & Dependencies', icon: 'shield' },
-  { page: 'approvals', label: 'Approvals & Client Inputs', icon: 'inbox' },
   { page: 'meetings', label: 'Meetings & Minutes', icon: 'notes' },
-  { page: 'reports', label: 'Reports & Exports', icon: 'file' },
   { page: 'settings', label: 'Settings / Data Connection', icon: 'settings', internalOnly: true },
 ];
 
@@ -137,10 +127,8 @@ function Shell({ onSignOut, onSignIn }: { onSignOut: () => void; onSignIn: () =>
   const { page, params } = useRoute();
   const [navOpen, setNavOpen] = useState(false);
   useEffect(() => setNavOpen(false), [page]);
-  const sheetLink = snap.sync.mode === 'public-sheet';
-  const items = NAV.filter(n => internal || !n.internalOnly || (n.sheetLink && sheetLink));
+  const items = NAV.filter(n => internal || !n.internalOnly);
   const errors = (snap.issues ?? []).filter(i => i.severity === 'error').length;
-  const pendingClient = project.approvals.filter(a => !a.decided).length + project.deliverables.filter(d => d.isClientInput && !d.complete).length;
 
   return (
     <div className={`shell${navOpen ? ' nav-open' : ''}`}>
@@ -160,7 +148,6 @@ function Shell({ onSignOut, onSignIn }: { onSignOut: () => void; onSignIn: () =>
               <span>{n.label}</span>
               {n.page === 'settings' && errors > 0 && <span className="count count-red" title="Data-quality errors">{errors}</span>}
               {n.page === 'tracker' && project.kpis.overdue > 0 && <span className="count count-red" title="Overdue">{project.kpis.overdue}</span>}
-              {n.page === 'approvals' && pendingClient > 0 && <span className="count" title="Open approvals and client inputs">{pendingClient}</span>}
             </a>
           ))}
         </nav>
@@ -220,14 +207,9 @@ function Shell({ onSignOut, onSignIn }: { onSignOut: () => void; onSignIn: () =>
         )}
         <main id="main" tabIndex={-1}>
           {page === 'summary' && <Summary />}
-          {page === 'sheet' && (internal || sheetLink) && <LiveSheet />}
           {page === 'tracker' && <Tracker params={params} />}
-          {page === 'phases' && <Phases params={params} />}
           {page === 'timeline' && <Gantt />}
-          {page === 'risks' && <Risks params={params} />}
-          {page === 'approvals' && <Approvals />}
           {page === 'meetings' && <Meetings params={params} />}
-          {page === 'reports' && <Reports />}
           {page === 'settings' && internal && <SettingsPage />}
         </main>
       </div>

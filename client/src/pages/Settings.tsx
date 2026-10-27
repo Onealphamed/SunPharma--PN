@@ -101,7 +101,7 @@ function Quality() {
   const [sev, setSev] = useState<'all' | Issue['severity']>('all');
   const issues = (snap.issues ?? []).filter(i => sev === 'all' || i.severity === sev);
   const count = (s: Issue['severity']) => (snap.issues ?? []).filter(i => i.severity === s).length;
-  const link = (i: Issue) => (i.table === 'deliverables' && i.recordId ? `#/tracker?open=${encodeURIComponent(i.recordId)}` : i.table === 'raid' || i.table === 'decisions' ? '#/risks' : i.table === 'actions' || i.table === 'meetings' ? '#/meetings' : undefined);
+  const link = (i: Issue) => (i.table === 'deliverables' && i.recordId ? `#/tracker?open=${encodeURIComponent(i.recordId)}` : i.table === 'actions' || i.table === 'meetings' ? '#/meetings' : undefined);
   return (
     <Card title="Data-quality report" subtitle="Re-checked on every sync: unconfirmed or impossible dates, blank or unknown statuses, missing owners, duplicate or missing IDs, placeholder text, dependency cycles and broken links. Rows with ID problems are read-only until fixed in the sheet.">
       <div className="toolbar">

@@ -12,21 +12,6 @@ export interface CellUpdate {
 
 export type StoreKind = 'google' | 'public-sheet' | 'local';
 
-/** One worksheet exactly as it stands, for the "Live sheet" view. */
-export interface WorkbookTab {
-  name: string;
-  /** Sheet rows that contain anything, with their 1-based sheet row number. */
-  rows: { n: number; cells: string[] }[];
-  columns: number;
-}
-
-export interface WorkbookSnapshot {
-  tabs: WorkbookTab[];
-  /** Short content hash; changes whenever any cell changes. */
-  version: string;
-  readAt: string;
-}
-
 /**
  * Minimal tabular storage contract. Implemented by the Google Sheets store (service account,
  * read/write), the public-link store (view-only link, read-only) and a JSON file store
@@ -43,8 +28,6 @@ export interface TableStore {
   appendRows(tab: string, rows: CellOut[][]): Promise<void>;
   /** Create any missing tabs with the given header rows (used by setup scripts). */
   ensureTabs(tabs: { name: string; header: string[] }[]): Promise<string[]>;
-  /** Every tab as last read, when the store can provide it. */
-  workbook?(): WorkbookSnapshot | null;
 }
 
 export class StoreError extends Error {

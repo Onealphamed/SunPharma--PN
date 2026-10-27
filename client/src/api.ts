@@ -42,15 +42,7 @@ export interface Snapshot {
   columns: Partial<Record<TableKey, string[]>>;
   issues?: Issue[];
   sync: SyncStatus;
-}
-
-export interface Workbook {
-  tabs: { name: string; columns: number; rows: { n: number; cells: string[] }[] }[];
-  version: string;
-  readAt: string;
-  lastSuccessAt: string | null;
-  intervalSec: number;
-  masked: { tab: string; columns: string[] }[];
+  /** Link to the source Google Sheet, when it may be shown to this user. */
   sheetUrl: string | null;
 }
 
@@ -86,7 +78,6 @@ export const api = {
   logout: () => call('POST', '/api/auth/logout', {}),
   snapshot: (fresh = false) => call<Snapshot>('GET', fresh ? '/api/snapshot?fresh=1' : '/api/snapshot'),
   sync: () => call<{ sync: SyncStatus }>('POST', '/api/sync', {}),
-  workbook: () => call<Workbook>('GET', '/api/workbook'),
   update: (table: TableKey, key: string, changes: Record<string, unknown>, original: Record<string, unknown>) =>
     call<{ ok: boolean; record: Rec; unchanged?: boolean }>('PATCH', `/api/tables/${table}/${encodeURIComponent(key)}`, { changes, original }),
   bulk: (table: TableKey, items: BulkItem[]) => call<{ ok: boolean; updated: number }>('POST', `/api/tables/${table}/bulk`, { items }),

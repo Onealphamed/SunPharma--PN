@@ -3,11 +3,10 @@
 // sheet exactly as it stands. Dashboard tables come from tabs with the live-tracker names
 // when present; otherwise they are built from the "Readiness Checklist" tab on each read.
 // Nothing can be written back: changes are made in Google Sheets.
-import crypto from 'node:crypto';
 import ExcelJS from 'exceljs';
 import type { RawTable } from '../../../shared/model';
 import { cellValue, importChecklist, SOURCE_SHEET } from '../checklistImport';
-import { CellOut, CellUpdate, StoreError, TableStore, WorkbookSnapshot, WorkbookTab } from './types';
+import { CellOut, CellUpdate, StoreError, TableStore } from './types';
 
 export const READ_ONLY_MESSAGE = 'This dashboard reads the Google Sheet through its view-only link, so changes are made in Google Sheets and appear here on the next sync.';
 
@@ -35,7 +34,6 @@ function isoish(d: Date): string {
 export class PublicSheetStore implements TableStore {
   readonly kind = 'public-sheet' as const;
   readonly readOnly = true;
-  private last: WorkbookSnapshot | null = null;
   private inflight: Promise<Record<string, RawTable>> | null = null;
 
   constructor(private sheetId: string, private fetcher: Fetcher = fetch as unknown as Fetcher) {}
@@ -46,10 +44,6 @@ export class PublicSheetStore implements TableStore {
 
   get exportUrl() {
     return `https://docs.google.com/spreadsheets/d/${encodeURIComponent(this.sheetId)}/export?format=xlsx`;
-  }
-
-  workbook() {
-    return this.last;
   }
 
   private async download(): Promise<ArrayBuffer> {
@@ -78,44 +72,23 @@ export class PublicSheetStore implements TableStore {
       throw new StoreError(`The workbook downloaded from Google Sheets could not be read: ${(e as Error).message}`, 502);
     }
     const tables: Record<string, RawTable> = {};
-    const tabs: WorkbookTab[] = [];
     for (const ws of wb.worksheets) {
       // Google pads every tab to ~1,000 formatted rows, so only cells holding a value are visited.
-      const byRow = new Map<number, { cells: (string | number | null)[]; display: string[] }>();
-      let columns = 0;
+      const byRow = new Map<number, (string | number | null)[]>();
       let lastRow = 0;
       ws.eachRow({ includeEmpty: false }, (row, r) => {
         const cells: (string | number | null)[] = [];
-        // Display copy: cells covered by a merge are blank, as Google Sheets shows them.
-        const display: string[] = [];
         row.eachCell({ includeEmpty: false }, (cell, c) => {
-          const v = plain(cell.value);
-          cells[c - 1] = v;
-          display[c - 1] = cell.isMerged && cell.master.address !== cell.address ? '' : v === null ? '' : String(v);
+          cells[c - 1] = plain(cell.value);
         });
-        for (let i = 0; i < cells.length; i++) {
-          if (cells[i] === undefined) cells[i] = null;
-          if (display[i] === undefined) display[i] = '';
-        }
+        for (let i = 0; i < cells.length; i++) if (cells[i] === undefined) cells[i] = null;
         while (cells.length && cells[cells.length - 1] === null) cells.pop();
-        while (display.length && display[display.length - 1] === '') display.pop();
         if (!cells.length) return;
-        byRow.set(r, { cells, display });
-        columns = Math.max(columns, cells.length);
+        byRow.set(r, cells);
         lastRow = r;
       });
-      const grid: (string | number | null)[][] = [];
-      const shown: string[][] = [];
-      for (let r = 1; r <= lastRow; r++) {
-        grid.push(byRow.get(r)?.cells ?? []);
-        shown.push(byRow.get(r)?.display ?? []);
-      }
+      const grid = Array.from({ length: lastRow }, (_, i) => byRow.get(i + 1) ?? []);
       tables[ws.name] = { header: (grid[0] ?? []).map(v => (v === null ? '' : String(v))), rows: grid.slice(1) };
-      tabs.push({
-        name: ws.name,
-        columns,
-        rows: shown.slice(0, grid.length).map((cells, i) => ({ n: i + 1, cells })).filter(r => r.cells.some(Boolean)),
-      });
     }
     // Dashboard tables built from the checklist; real tabs with the same names take precedence.
     const derived: Record<string, RawTable> = {};
@@ -124,8 +97,6 @@ export class PublicSheetStore implements TableStore {
       // The audit log stays empty: nothing is edited through the dashboard in this mode.
       for (const [name, tab] of Object.entries(imported.tables)) derived[name] = name === 'Audit Log' ? { header: tab.header, rows: [] } : tab;
     }
-    const version = crypto.createHash('sha1').update(JSON.stringify(tabs)).digest('hex').slice(0, 10);
-    this.last = { tabs, version, readAt: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z') };
     return { ...derived, ...tables };
   }
 

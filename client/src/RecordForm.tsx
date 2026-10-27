@@ -23,7 +23,7 @@ export function RecordForm({ table, rec, sections, defaults, onDone, onCancel, s
   onCancel?: () => void;
   submitLabel?: string;
 }) {
-  const { user, project, canEditCol, update, create } = useData();
+  const { user, project, snap, canEditCol, update, create } = useData();
   const spec = TABLES[table];
   const creating = !rec;
   const initial = useMemo(() => {
@@ -107,7 +107,7 @@ export function RecordForm({ table, rec, sections, defaults, onDone, onCancel, s
                   {table === 'deliverables' && k === 'actualEnd' && can && values.completionConfirmed === 'Yes' && !values.actualEnd && (
                     <button type="button" className="btn btn-sm" onClick={() => setValues(o => ({ ...o, actualEnd: project.today }))}>Completed today ({fmtDate(project.today)})</button>
                   )}
-                  {!canEditCol(table, k) && !creating && <small className="help warn">Column not present in the sheet</small>}
+                  {!(snap.columns[table] ?? []).includes(k) && !creating && <small className="help warn">Column not present in the sheet</small>}
                 </div>
               );
             })}
