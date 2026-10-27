@@ -160,30 +160,3 @@ export function HBars({ rows: allRows, onBar }: { rows: { key: string; label: st
     </div>
   );
 }
-
-/** Bullet-style bars: confirmed complete (filled) out of total (track). */
-export function CompletionBars({ rows, color, onBar }: { rows: { key: string; label: string; done: number; total: number }[]; color: string; onBar?: (key: string) => void }) {
-  const { show, hide } = useTip();
-  const max = Math.max(1, ...rows.map(r => r.total));
-  return (
-    <div className="hbars">
-      {rows.map(r => (
-        <div
-          key={r.key}
-          className={`hbar-row${onBar ? ' clickable' : ''}`}
-          onClick={onBar ? () => onBar(r.key) : undefined}
-          onMouseMove={e => show(e, <TipBody title={r.label} rows={[['Completion confirmed', r.done], ['Total', r.total], ['Complete', `${pct(r.done, r.total)}%`]]} />)}
-          onMouseLeave={hide}
-        >
-          <span className="hb-label">{r.label}</span>
-          <span className="hb-track">
-            <span className="hb-total" style={{ width: `${(r.total / max) * 100}%` }}>
-              {r.done > 0 && <span className="hb-bar" style={{ width: `${(r.done / r.total) * 100}%`, background: color }} />}
-            </span>
-          </span>
-          <span className="hb-val">{r.done}/{r.total}</span>
-        </div>
-      ))}
-    </div>
-  );
-}

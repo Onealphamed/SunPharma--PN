@@ -6,14 +6,13 @@ import { fmtDate } from '../../../shared/dates';
 import { Deliverable, HEALTH_LABEL, plainName } from '../../../shared/project';
 import { CATEGORY_COLOR, CHART_ORDER, COMPLETE_COLOR } from '../../../shared/status';
 import { go } from '../App';
-import { ChartCard, ChartKey, CompletionBars, Counts, HBars, pct, Series, StackBar, StackRows, TooltipLayer } from '../charts';
+import { ChartCard, ChartKey, Counts, HBars, pct, Series, StackBar, StackRows, TooltipLayer } from '../charts';
 import { useData } from '../data';
 import { PROGRESS_HELP, progressOf } from '../progress';
 import { HealthPill, Icon, PlanDate, Progress, relTime } from '../ui';
 
 const OAM_COLOR = '#2a78d6';
 const SUN_COLOR = '#f5911f';
-const TYPES = ['Task', 'Approval Gate', 'Client Input', 'Milestone'];
 
 export function Summary() {
   const { project: p, snap, internal, readOnly } = useData();
@@ -46,11 +45,6 @@ export function Summary() {
   const noDates = k.notScheduled === open.length && open.length > 0;
 
   const phaseRows = p.phases.map(ph => ({ key: ph.phase, label: ph.name, counts: countBy(ds.filter(d => d.phase === ph.phase)), done: ph.completed, total: ph.total }));
-  const owners = [...new Set(ds.map(d => d.oamOwner))].map(o => {
-    const items = ds.filter(d => d.oamOwner === o);
-    return { key: o, label: o || 'Not assigned', counts: countBy(items), done: items.filter(d => d.complete).length, total: items.length };
-  }).sort((a, b) => b.total - a.total);
-  const typeRows = TYPES.map(t => ({ key: t, label: t, done: ds.filter(d => d.type === t && d.complete).length, total: ds.filter(d => d.type === t).length })).filter(r => r.total);
   const statusCols = series.map(x => x.label);
 
   return (
@@ -141,14 +135,6 @@ export function Summary() {
 
           <ChartCard title="Progress by phase" sub="Bar length = deliverables, colour = status · right = confirmed complete" table={{ head: ['Phase', ...statusCols, 'Complete'], rows: phaseRows.map(r => [r.label, ...series.map(x => r.counts[x.key] ?? 0), `${pct(r.done, r.total)}%`]) }}>
             <StackRows series={series} rows={phaseRows.map(r => ({ key: r.key, label: r.label, counts: r.counts, right: <><b>{pct(r.done, r.total)}%</b><small>{r.done}/{r.total}</small></> }))} onRow={ph => go('tracker', { phase: ph })} />
-          </ChartCard>
-
-          <ChartCard title="Workload by OneAlphaMed owner" sub="Deliverables per owner, by status" table={{ head: ['Owner', ...statusCols, 'Total'], rows: owners.map(r => [r.label, ...series.map(x => r.counts[x.key] ?? 0), r.total]) }}>
-            <StackRows series={series} rows={owners.map(r => ({ key: r.key, label: r.label, counts: r.counts, right: <><b>{r.total}</b><small>{r.done} done</small></> }))} onRow={o => o && go('tracker', { oam: o })} />
-          </ChartCard>
-
-          <ChartCard title="Completion by deliverable type" sub="Confirmed complete out of total" table={{ head: ['Type', 'Complete', 'Total'], rows: typeRows.map(r => [r.label, r.done, r.total]) }}>
-            <CompletionBars rows={typeRows} color={COMPLETE_COLOR} />
           </ChartCard>
         </div>
 
