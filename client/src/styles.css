@@ -681,3 +681,22 @@ details > summary { cursor: pointer; padding: 6px 0; }
 .sr-track { display: block; min-width: 0; }
 .sr-track > span { display: block; min-width: 3px; }
 .sr-track .stack { min-width: 0; }
+
+/* ---- Compact Executive Summary header (as on the AZ dashboard) ---- */
+.ov-head { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; padding: 18px 22px; position: relative; overflow: hidden; }
+.ov-head::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--brand-gradient); }
+.ov-title { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ov-title h1 { margin: -6px 0 0; }
+.ov-pills { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); background: var(--line-2); border-radius: 20px; padding: 4px 10px; white-space: nowrap; }
+.ov-progress { display: flex; gap: 22px; align-items: center; }
+.ov-ring { display: flex; align-items: center; gap: 12px; }
+.ov-ring strong { display: block; font-size: 20px; color: var(--ink); }
+.ov-ring span { font-size: 12px; color: var(--muted); }
+.ring-text { font-size: 14px; font-weight: 700; fill: var(--ink); }
+.ov-time { width: 220px; display: flex; flex-direction: column; gap: 5px; }
+.ov-time-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.ov-time-row strong { color: var(--ink); }
+@media (max-width: 1080px) { .ov-head { grid-template-columns: 1fr; } .ov-progress { flex-wrap: wrap; } }
+@media (max-width: 860px) { .ov-time { width: 100%; } .pill { white-space: normal; } }
+@media print { .ov-head::before { display: none; } }

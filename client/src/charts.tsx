@@ -160,3 +160,17 @@ export function HBars({ rows: allRows, onBar }: { rows: { key: string; label: st
     </div>
   );
 }
+
+/** Progress ring with the percentage in the middle. */
+export function Ring({ value, color = 'var(--oam-green)', size = 86, label = 'Deliverables complete' }: { value: number; color?: string; size?: number; label?: string }) {
+  const r = 26;
+  const c = 2 * Math.PI * r;
+  const v = Math.max(0, Math.min(100, value));
+  return (
+    <svg viewBox="0 0 64 64" width={size} height={size} role="img" aria-label={`${label}: ${Math.round(v)}%`}>
+      <circle cx="32" cy="32" r={r} fill="none" stroke="var(--line-2)" strokeWidth="7" />
+      {v > 0 && <circle cx="32" cy="32" r={r} fill="none" stroke={color} strokeWidth="7" strokeLinecap="round" strokeDasharray={`${(v / 100) * c} ${c}`} transform="rotate(-90 32 32)" />}
+      <text x="32" y="36" textAnchor="middle" className="ring-text">{Math.round(v)}%</text>
+    </svg>
+  );
+}

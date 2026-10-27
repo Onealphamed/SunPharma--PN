@@ -2,14 +2,14 @@
 // header, KPI tiles, "where it's pending — and with whom", then charts. Numbers and charts
 // only; every figure is calculated from the live tracker and links to it.
 import { ReactNode } from 'react';
-import { fmtDate } from '../../../shared/dates';
+import { diffDays, fmtDate } from '../../../shared/dates';
 import { Deliverable, HEALTH_LABEL, plainName } from '../../../shared/project';
 import { CATEGORY_COLOR, CHART_ORDER, COMPLETE_COLOR } from '../../../shared/status';
 import { go } from '../App';
-import { ChartCard, ChartKey, Counts, HBars, pct, Series, StackBar, StackRows, TooltipLayer } from '../charts';
+import { ChartCard, ChartKey, Counts, HBars, pct, Ring, Series, StackBar, StackRows, TooltipLayer } from '../charts';
 import { useData } from '../data';
 import { PROGRESS_HELP, progressOf } from '../progress';
-import { HealthPill, Icon, PlanDate, Progress, relTime } from '../ui';
+import { HealthPill, Icon } from '../ui';
 
 const OAM_COLOR = '#2a78d6';
 const SUN_COLOR = '#f5911f';
@@ -41,6 +41,14 @@ export function Summary() {
   const withOam = open.filter(d => d.awaiting === 'OneAlphaMed');
   const withSun = open.filter(d => d.awaiting === 'Sun Pharma');
   const avgProgress = ds.length ? Math.round(ds.reduce((a, d) => a + progressOf(d), 0) / ds.length) : 0;
+
+  // Where today sits between the earliest planned start and latest planned end (no dates → not shown).
+  const start = p.projectStart;
+  const end = p.projectEnd;
+  const span = start && end ? Math.max(1, diffDays(start, end)) : 0;
+  const elapsed = start ? diffDays(start, p.today) : 0;
+  const timePct = span ? Math.max(0, Math.min(100, Math.round((elapsed / span) * 100))) : null;
+  const when = !start ? 'Not yet scheduled' : elapsed < 0 ? `Starts in ${-elapsed} day${elapsed === -1 ? '' : 's'}` : end && p.today > end ? 'Past planned end' : span ? `Day ${elapsed + 1} of ${span + 1}` : `Day ${elapsed + 1}`;
   const notStarted = k.yetToStart + k.yetToAssign;
   const noDates = k.notScheduled === open.length && open.length > 0;
 
@@ -50,45 +58,46 @@ export function Summary() {
   return (
     <TooltipLayer>
       <div className="page">
-        <section className="hero card">
-          <div className="hero-main">
+        {/* Compact header (as on the AZ dashboard) */}
+        <section className="ov-head card">
+          <div className="ov-title">
             <div className="eyebrow">{s.programme || 'Programme'}</div>
             <h1>{s.projectName}</h1>
-            <div className="hero-meta">
-              <span><strong>Client</strong> {s.client}</span>
-              <span><strong>Agency</strong> {s.agency}</span>
-              <span title={s.startDate ? 'Project Start Date (Settings)' : 'Earliest confirmed planned start across deliverables'}><strong>{s.startDate ? 'Start' : 'Earliest planned start'}</strong> <PlanDate v={p.projectStart} label="Not confirmed" /></span>
-              <span title={s.endDate ? 'Project End Date (Settings)' : 'Latest confirmed planned end across deliverables'}><strong>{s.endDate ? 'End' : 'Latest planned end'}</strong> <PlanDate v={p.projectEnd} label="Not confirmed" /></span>
-              <span><strong>Current phase</strong> {p.currentPhase}</span>
-            </div>
-            <div className="hero-meta">
-              <span><strong>Project manager</strong> {s.projectManager || <span className="unconfirmed">Not confirmed</span>}</span>
-              <span><strong>Data last synced</strong> {relTime(snap.sync.lastSuccessAt)}</span>
-              <span><strong>Reporting date</strong> {fmtDate(p.today, { weekday: true })}</span>
+            <div className="ov-pills">
+              <span title={(s.healthOverride ? [s.healthOverrideReason || 'Set by the Project Manager', `Calculated: ${HEALTH_LABEL[p.computedHealth]}`] : p.healthReasons).join('\n')}>
+                <HealthPill health={p.health} override={!!s.healthOverride} />
+              </span>
+              <span className="pill"><Icon name="flag" size={13} /> {p.currentPhase}</span>
+              <span className="pill" title="Earliest planned start → latest planned end">
+                <Icon name="calendar" size={13} /> {start || end ? <>{start ? fmtDate(start) : 'Start TBC'} → {end ? fmtDate(end) : 'End TBC'}</> : 'Dates not confirmed'}
+              </span>
+              <span className="pill">{when}</span>
             </div>
             {((internal && !readOnly) || snap.sheetUrl) && (
-              <div className="row no-print" style={{ marginTop: 6 }}>
+              <div className="ov-pills no-print">
                 {snap.sheetUrl && (
-                  <a className="btn btn-sun" href={snap.sheetUrl} target="_blank" rel="noreferrer noopener" title="Opens the live Google Sheet this dashboard reads">
-                    <Icon name="link" /> Open Google Sheet
+                  <a className="btn btn-sm btn-primary" href={snap.sheetUrl} target="_blank" rel="noreferrer noopener" title="The Google Sheet this dashboard reads live">
+                    <Icon name="grid" size={14} /> Open live Google Sheet ↗
                   </a>
                 )}
-                {internal && !readOnly && <button className="btn btn-primary" onClick={() => go('meetings', { new: '1' })}><Icon name="plus" /> Add Meeting Notes</button>}
+                {internal && !readOnly && <button className="btn btn-sm" onClick={() => go('meetings', { new: '1' })}><Icon name="plus" size={14} /> Add Meeting Notes</button>}
               </div>
             )}
           </div>
-          <div className="hero-health">
-            <div className="eyebrow">Overall health</div>
-            <HealthPill health={p.health} override={!!s.healthOverride} large />
-            <ul className="reasons">
-              {(s.healthOverride ? [s.healthOverrideReason || 'Set by the Project Manager (no reason recorded)', `Calculated: ${HEALTH_LABEL[p.computedHealth]}`] : p.healthReasons).map((r, i) => <li key={i}>{r}</li>)}
-            </ul>
-            <div className="hero-number" title="Completed deliverables ÷ all active deliverables. Only items with Completion Confirmed = Yes count as completed.">
-              <strong>{k.pct}%</strong>
-              <span className="muted">overall progress</span>
+          <div className="ov-progress">
+            <div className="ov-ring" title="Only items with Completion Confirmed = Yes count as complete">
+              <Ring value={k.pct} />
+              <div>
+                <strong>{k.completed}/{k.total}</strong>
+                <span>deliverables complete</span>
+              </div>
             </div>
-            <Progress value={k.pct} label="Overall progress" color="var(--navy)" />
-            <small className="muted">{k.completed} of {k.total} deliverables confirmed complete</small>
+            <div className="ov-time">
+              <div className="ov-time-row"><span>Timeline elapsed</span><strong>{timePct === null ? '—' : `${timePct}%`}</strong></div>
+              <div className="progress"><div style={{ width: `${timePct ?? 0}%`, background: 'var(--navy)' }} /></div>
+              <div className="ov-time-row" title={PROGRESS_HELP}><span>Weighted progress</span><strong>{avgProgress}%</strong></div>
+              <div className="progress"><div style={{ width: `${avgProgress}%` }} /></div>
+            </div>
           </div>
         </section>
 
