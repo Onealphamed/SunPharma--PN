@@ -1,8 +1,8 @@
-# Sunpharma-DiabetoDashboard — PN0510 Advisory Board Programme
+# Sunpharma-Diabeto-Dashboard — PN0510 Advisory Board Programme
 
 Client-facing project dashboard for the **Sun Pharma PN0510 Advisory Board programme**: regional boards AB-1 to AB-4 and the national consensus board NAB-5, run by OneAlphaMed. The source of truth is a **live Google Sheet**, created from the `Readiness Checklist` worksheet of `OneAlphaMed_SunPharma_PN0510_AdBoard_Readiness_Checklist_v1.0.xlsx`.
 
-> **Current state.** Live at https://sun-pharma-pn.vercel.app.
+> **Current state.** Live at https://sunpharma-diabetodashboard.vercel.app.
 > - It reads the Google Sheet `11utniknUlqKEEwh-8_fS2qkM9ttoKbHqUb86dOZLrA0` through its **"Anyone with the link can view"** sharing (view-only link mode, §3A). No credentials are needed.
 > - Edits are made in Google Sheets and appear within the sync interval (15 s by default).
 > - Visitors need no sign-in (open access, §4).
