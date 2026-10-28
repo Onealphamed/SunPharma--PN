@@ -6,7 +6,7 @@ Client-facing project dashboard for the **Sun Pharma PN0510 Advisory Board progr
 > - It reads the Google Sheet `11utniknUlqKEEwh-8_fS2qkM9ttoKbHqUb86dOZLrA0` through its **"Anyone with the link can view"** sharing (view-only link mode, §3A). No credentials are needed.
 > - Edits are made in Google Sheets and appear within the sync interval (15 s by default).
 > - Visitors need no sign-in (open access, §4).
-> - Four pages: Executive Summary, Deliverables Tracker, Timeline / Gantt and Meetings & Minutes (plus Settings for the team). Colours are ~70% OneAlphaMed (deep blue / teal, logo gradient) and ~30% Sun Pharma (orange accents); the tokens are at the top of `client/src/styles.css`.
+> - Four pages: Executive Summary, Deliverables Tracker, Timeline / Gantt and Meetings & Minutes (plus Settings for the team). A sun/moon button in the top bar switches light and dark mode; it follows the device setting until someone picks one, and the choice is remembered on that device. Colours are ~70% OneAlphaMed (deep blue / teal, logo gradient) and ~30% Sun Pharma (orange accents); the tokens are at the top of `client/src/styles.css`.
 
 ## Contents
 1. What it does

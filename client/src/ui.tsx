@@ -34,6 +34,8 @@ const PATHS: Record<string, string> = {
   calendar: 'M4 5h16v16H4zM4 9h16M8 3v4M16 3v4',
   diamond: 'M12 2l10 10-10 10L2 12z',
   link: 'M10 14a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 10a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1',
+  sun: 'M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4M12 8a4 4 0 100 8 4 4 0 000-8z',
+  moon: 'M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z',
   print: 'M6 9V3h12v6M6 18H4v-6h16v6h-2M6 14h12v7H6z',
 };
 

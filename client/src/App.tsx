@@ -9,6 +9,7 @@ import { Meetings } from './pages/Meetings';
 import { SettingsPage } from './pages/Settings';
 import { Summary } from './pages/Summary';
 import { Tracker } from './pages/Tracker';
+import { useTheme } from './theme';
 import { Icon, relTime, useTick } from './ui';
 
 export type Page = 'summary' | 'tracker' | 'timeline' | 'meetings' | 'settings';
@@ -182,6 +183,7 @@ function Shell({ onSignOut, onSignIn }: { onSignOut: () => void; onSignIn: () =>
           </button>
           <div className="topbar-title">{NAV.find(n => n.page === page)?.label}</div>
           <SyncIndicator />
+          <ThemeToggle />
         </header>
         {asOf && (
           <div className="banner banner-warn">
@@ -216,5 +218,15 @@ function Shell({ onSignOut, onSignIn }: { onSignOut: () => void; onSignIn: () =>
       <datalist id="deliverable-ids">{project.deliverables.map(d => <option key={d.key} value={d.key}>{d.name}</option>)}</datalist>
       {navOpen && <div className="nav-scrim" onClick={() => setNavOpen(false)} />}
     </div>
+  );
+}
+
+function ThemeToggle() {
+  const [theme, toggle] = useTheme();
+  const label = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  return (
+    <button className="icon-btn theme-toggle no-print" onClick={toggle} aria-label={label} title={label}>
+      <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+    </button>
   );
 }
