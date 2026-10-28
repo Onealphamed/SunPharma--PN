@@ -40,7 +40,7 @@ export function Login({ onSignedIn, onCancel }: { onSignedIn: () => void; onCanc
         <div className="brand">
           <div className="brand-mark">PN</div>
           <div>
-            <div className="brand-name">PN0510 Advisory Board Programme</div>
+            <div className="brand-name">Sunpharma-DiabetoDashboard</div>
             <div className="brand-sub">Project dashboard · Sun Pharma × OneAlphaMed</div>
           </div>
         </div>

@@ -222,7 +222,7 @@ export function importChecklist(wb: ExcelJS.Workbook, opts: { sourceName: string
 
   const settings: Record<string, Cell>[] = [];
   const set = (key: string, value: Cell, notes: string, visibility = 'Client') => settings.push({ key, value, notes, visibility });
-  set('Project Name', 'PN0510 Advisory Board Programme', `From the workbook file name "${opts.sourceName}". Edit to the agreed programme name.`);
+  set('Project Name', 'Sunpharma-DiabetoDashboard', 'Dashboard name agreed with the project owner. Edit here to change it.');
   set('Programme', 'Regional Advisory Boards AB-1 to AB-4 and National Consensus Advisory Board NAB-5', 'From the Phase 3 and Phase 4 headings of the Readiness Checklist.');
   set('Client', 'Sun Pharma', 'Checklist owner columns (Sun Owner)');
   set('Agency', 'OneAlphaMed', 'Checklist owner columns (OAM Owner)');

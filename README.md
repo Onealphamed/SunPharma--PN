@@ -1,4 +1,4 @@
-# PN0510 Advisory Board Programme — Project Management Dashboard
+# Sunpharma-DiabetoDashboard — PN0510 Advisory Board Programme
 
 Client-facing project dashboard for the **Sun Pharma PN0510 Advisory Board programme**: regional boards AB-1 to AB-4 and the national consensus board NAB-5, run by OneAlphaMed. The source of truth is a **live Google Sheet**, created from the `Readiness Checklist` worksheet of `OneAlphaMed_SunPharma_PN0510_AdBoard_Readiness_Checklist_v1.0.xlsx`.
 

@@ -61,7 +61,7 @@ export function settingsFromRecords(records: Rec[] | undefined): Settings {
     : [0, 6];
   const ho = get('Health Override').toLowerCase();
   return {
-    projectName: get('Project Name') || 'PN0510 Advisory Board Programme',
+    projectName: get('Project Name') || 'Sunpharma-DiabetoDashboard',
     programme: get('Programme'),
     client: get('Client') || 'Sun Pharma',
     agency: get('Agency') || 'OneAlphaMed',
